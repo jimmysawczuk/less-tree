@@ -7,13 +7,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 )
 
 var pathToLESS string
 var workingDirectory string
-var maxProcesses int
 
 func main() {
 	var err error
@@ -25,11 +23,8 @@ func main() {
 	}
 
 	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
-	flag.IntVar(&maxProcesses, "max-processes", 1, "Max number of processes to have open")
 
 	flag.Parse()
-
-	runtime.GOMAXPROCS(maxProcesses)
 
 	args := flag.Args()
 	chans := make([]chan int, len(args))
