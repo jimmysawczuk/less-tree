@@ -103,10 +103,10 @@ func compileFromRoot(dir string) {
 		}
 	}
 
-	compileDirectory("", less_dir, css_dir)
+	addDirectory("", less_dir, css_dir)
 }
 
-func compileDirectory(prefix string, less_dir, css_dir *os.File) {
+func addDirectory(prefix string, less_dir, css_dir *os.File) {
 	files, err := less_dir.Readdir(-1)
 	if err != nil {
 		log.Panicf("Can't parse %s", less_dir.Name())
@@ -129,15 +129,15 @@ func compileDirectory(prefix string, less_dir, css_dir *os.File) {
 				}
 			}
 
-			compileDirectory(v.Name()+"/", less_deeper, css_deeper)
+			addDirectory(v.Name()+"/", less_deeper, css_deeper)
 
 		} else if v.Name()[0:1] != "_" {
-			compileFile(less_dir, css_dir, v, prefix+v.Name())
+			addFile(less_dir, css_dir, v, prefix+v.Name())
 		}
 	}
 }
 
-func compileFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string) {
+func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string) {
 
 	var cmd_min *exec.Cmd
 	if pathToCssMin == "" {
