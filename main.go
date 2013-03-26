@@ -11,6 +11,7 @@ import (
 )
 
 var pathToLESS string
+var pathToCssMin string
 var workingDirectory string
 
 type Job struct {
@@ -41,6 +42,7 @@ func main() {
 	}
 
 	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
+	flag.StringVar(&pathToCssMin, "css-min", "", "Path to a CSS minifier which takes an input file and spits out minified CSS in stdout")
 	flag.Parse()
 
 	jobs_queue = NewWorker()
@@ -137,10 +139,17 @@ func compileDirectory(prefix string, less_dir, css_dir *os.File) {
 
 func compileFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string) {
 
+	var cmd_min *exec.Cmd
+	if pathToCssMin == "" {
+		cmd_min = exec.Command(pathToLESS, "-x", less_dir.Name()+"/"+less_file.Name())
+	} else {
+		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+"/"+strings.Replace(less_file.Name(), ".less", ".css", 1))
+	}
+
 	jobs_queue.Add(Job{
 		name:        log_text,
 		cmd:         exec.Command(pathToLESS, less_dir.Name()+"/"+less_file.Name()),
-		cmd_min:     exec.Command(pathToLESS, "-x", less_dir.Name()+"/"+less_file.Name()),
+		cmd_min:     cmd_min,
 		css_out:     css_dir.Name() + "/" + strings.Replace(less_file.Name(), ".less", ".css", 1),
 		css_min_out: css_dir.Name() + "/" + strings.Replace(less_file.Name(), ".less", ".min.css", 1),
 	})
@@ -208,7 +217,7 @@ func (w *Worker) runNextJob(ch chan bool) {
 
 func (j *Job) Run(ch chan int) {
 
-	log.Printf("Compiling %s", j.name)
+	fmt.Printf("%s\n", j.name)
 
 	(func() {
 		result, err := j.cmd.Output()
