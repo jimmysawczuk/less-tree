@@ -1,20 +1,11 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"log"
-	"os"
-	"os/exec"
 	"time"
 )
 
-type Job struct {
-	name        string
-	cmd         *exec.Cmd
-	cmd_min     *exec.Cmd
-	css_out     string
-	css_min_out string
+type Job interface {
+	Run(chan int)
 }
 
 type Worker struct {
@@ -23,13 +14,15 @@ type Worker struct {
 
 	max_jobs     int
 	running_jobs int
+	total_jobs   int
 }
 
 func NewWorker() Worker {
 	w := Worker{
 		started:      false,
-		max_jobs:     3,
+		max_jobs:     maxJobs,
 		running_jobs: 0,
+		total_jobs:   0,
 	}
 
 	return w
@@ -37,6 +30,7 @@ func NewWorker() Worker {
 
 func (w *Worker) Add(j Job) {
 	w.jobs = append(w.jobs, &j)
+	w.total_jobs++
 }
 
 func (w *Worker) Start(return_ch chan int) {
@@ -57,7 +51,9 @@ func (w *Worker) Start(return_ch chan int) {
 		w.started = false
 	}
 
-	return_ch <- w.running_jobs
+	if return_ch != nil {
+		return_ch <- w.running_jobs
+	}
 }
 
 func (w *Worker) getNextJob() *Job {
@@ -75,7 +71,7 @@ func (w *Worker) runNextJob(ch chan bool) {
 		job := w.getNextJob()
 		job_ch = make(chan int)
 		w.running_jobs++
-		go job.Run(job_ch)
+		go (*job).Run(job_ch)
 	} else {
 		ch <- false
 	}
@@ -84,58 +80,6 @@ func (w *Worker) runNextJob(ch chan bool) {
 	w.running_jobs--
 }
 
-func (j *Job) Run(ch chan int) {
-
-	compile_error := false
-
-	(func() {
-		result, err := j.cmd.CombinedOutput()
-		if err != nil {
-			if isVerbose {
-				fmt.Println(bytes.NewBuffer(result).String())
-			}
-
-			compile_error = true
-		} else {
-			dest_file, err := os.OpenFile(j.css_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
-			if err != nil {
-				log.Println(fmt.Errorf("File output error: %s\n", err))
-			} else {
-				dest_file.Write(result)
-			}
-		}
-	})()
-
-	if !compile_error {
-		(func() {
-			result, err := j.cmd_min.Output()
-			if err != nil {
-				if isVerbose {
-					fmt.Println(bytes.NewBuffer(result).String())
-				}
-
-				compile_error = true
-			} else {
-				dest_file, err := os.OpenFile(j.css_min_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
-				if err != nil {
-					log.Println(fmt.Errorf("File output error: %s\n", err))
-				} else {
-					dest_file.Write(result)
-				}
-			}
-		})()
-	}
-
-	if !compile_error {
-		fmt.Printf("SUCCESS: %s compiled\n", j.name)
-	} else {
-		if !isVerbose {
-			fmt.Printf("ERROR: %s NOT compiled, run with -v for errors\n", j.name)
-		} else {
-			fmt.Printf("ERROR: %s NOT compiled\n", j.name)
-		}
-
-	}
-
-	ch <- 1
+func (w Worker) Total() int {
+	return w.total_jobs
 }

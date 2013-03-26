@@ -1,7 +1,7 @@
 package main
 
 import (
-	//	"bytes"
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -9,18 +9,30 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var pathToLESS string
 var pathToCssMin string
 var workingDirectory string
 var isVerbose bool
+var maxJobs int = 10
 
 var lessFilename *regexp.Regexp
 
 var jobs_queue Worker
 
+type CSSJob struct {
+	name        string
+	cmd         *exec.Cmd
+	cmd_min     *exec.Cmd
+	css_out     string
+	css_min_out string
+}
+
 func main() {
+	start_time := time.Now()
+
 	var err error
 	workingDirectory, err = os.Getwd()
 	if err != nil {
@@ -32,9 +44,10 @@ func main() {
 	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
 	flag.StringVar(&pathToCssMin, "css-min", "", "Path to a CSS minifier which takes an input file and spits out minified CSS in stdout")
 	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
+	flag.IntVar(&maxJobs, "max-jobs", 5, "Maximum amount of jobs to run at once")
 	flag.Parse()
 
-	lessFilename = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9_-]+)\.less$`)
+	lessFilename = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9_\-\.]+)\.less$`)
 
 	jobs_queue = NewWorker()
 
@@ -50,6 +63,10 @@ func main() {
 		running_jobs = <-running_jobs_chan
 	}
 
+	finish_time := time.Now()
+
+	fmt.Println("--------------------------------------")
+	fmt.Printf("%d files compiled, took %s\n", jobs_queue.Total(), finish_time.Sub(start_time).String())
 }
 
 func compileFromRoot(dir string) {
@@ -126,6 +143,11 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 
 			addFile(less_dir, css_dir, v, prefix+v.Name())
 
+		} else {
+
+			// If we got here, it means we're either not dealing with a LESS file or we're dealing with an underscore-prefixed file (an include).
+			// fmt.Printf("Invalid filename: %s\n", v.Name())
+
 		}
 	}
 }
@@ -144,13 +166,17 @@ func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string)
 		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+"/"+strings.Replace(less_file.Name(), ".less", ".css", 1))
 	}
 
-	jobs_queue.Add(Job{
+	css_job := CSSJob{
 		name:        log_text,
 		cmd:         cmd,
 		cmd_min:     cmd_min,
 		css_out:     convertToCSSFilename(less_dir, css_dir, less_file, false),
 		css_min_out: convertToCSSFilename(less_dir, css_dir, less_file, true),
-	})
+	}
+
+	jobs_queue.Add(css_job)
+
+	jobs_queue.Start(nil)
 }
 
 func convertToCSSFilename(less_dir, css_dir *os.File, less_file os.FileInfo, min bool) (css string) {
@@ -171,4 +197,59 @@ func convertToCSSFilename(less_dir, css_dir *os.File, less_file os.FileInfo, min
 	}
 
 	return css_dir.Name() + "/" + css_filename
+}
+
+func (j CSSJob) Run(ch chan int) {
+
+	compile_error := false
+
+	(func() {
+		result, err := j.cmd.CombinedOutput()
+		if err != nil {
+			if isVerbose {
+				fmt.Println(bytes.NewBuffer(result).String())
+			}
+
+			compile_error = true
+		} else {
+			dest_file, err := os.OpenFile(j.css_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
+			if err != nil {
+				log.Println(fmt.Errorf("File write error: %s\n", err))
+			} else {
+				dest_file.Write(result)
+			}
+		}
+	})()
+
+	if !compile_error {
+		(func() {
+			result, err := j.cmd_min.Output()
+			if err != nil {
+				if isVerbose {
+					fmt.Println(bytes.NewBuffer(result).String())
+				}
+
+				compile_error = true
+			} else {
+				dest_file, err := os.OpenFile(j.css_min_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
+				if err != nil {
+					log.Println(fmt.Errorf("File write error: %s\n", err))
+				} else {
+					dest_file.Write(result)
+				}
+			}
+		})()
+	}
+
+	if !compile_error {
+		fmt.Printf("SUCCESS: %s compiled\n", j.name)
+	} else {
+		if !isVerbose {
+			fmt.Printf("ERROR: %s NOT compiled, run with -v for errors\n", j.name)
+		} else {
+			fmt.Printf("ERROR: %s NOT compiled\n", j.name)
+		}
+	}
+
+	ch <- 1
 }
