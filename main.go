@@ -44,7 +44,7 @@ func main() {
 	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
 	flag.StringVar(&pathToCssMin, "css-min", "", "Path to a CSS minifier which takes an input file and spits out minified CSS in stdout")
 	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
-	flag.IntVar(&maxJobs, "max-jobs", 5, "Maximum amount of jobs to run at once")
+	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
 	flag.Parse()
 
 	lessFilename = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9_\-\.]+)\.less$`)
