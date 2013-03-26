@@ -1,34 +1,22 @@
 package main
 
 import (
+	//	"bytes"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
-	"time"
 )
 
 var pathToLESS string
 var pathToCssMin string
 var workingDirectory string
+var isVerbose bool
 
-type Job struct {
-	name        string
-	cmd         *exec.Cmd
-	cmd_min     *exec.Cmd
-	css_out     string
-	css_min_out string
-}
-
-type Worker struct {
-	jobs    []*Job
-	started bool
-
-	max_jobs     int
-	running_jobs int
-}
+var lessFilename *regexp.Regexp
 
 var jobs_queue Worker
 
@@ -43,7 +31,10 @@ func main() {
 
 	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
 	flag.StringVar(&pathToCssMin, "css-min", "", "Path to a CSS minifier which takes an input file and spits out minified CSS in stdout")
+	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
 	flag.Parse()
+
+	lessFilename = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9_-]+)\.less$`)
 
 	jobs_queue = NewWorker()
 
@@ -131,122 +122,53 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 
 			addDirectory(v.Name()+"/", less_deeper, css_deeper)
 
-		} else if v.Name()[0:1] != "_" {
+		} else if lessFilename.MatchString(v.Name()) {
+
 			addFile(less_dir, css_dir, v, prefix+v.Name())
+
 		}
 	}
 }
 
 func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string) {
 
-	var cmd_min *exec.Cmd
+	var cmd_min, cmd *exec.Cmd
+
+	// normal lessc command
+	cmd = exec.Command(pathToLESS, less_dir.Name()+"/"+less_file.Name())
+
+	// if we're using a custom minifier, we want to use that here. otherwise, just use lessc with the -x flag.
 	if pathToCssMin == "" {
-		cmd_min = exec.Command(pathToLESS, "-x", less_dir.Name()+"/"+less_file.Name())
+		cmd_min = exec.Command(pathToLESS, "-x", convertToCSSFilename(less_dir, css_dir, less_file, false))
 	} else {
 		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+"/"+strings.Replace(less_file.Name(), ".less", ".css", 1))
 	}
 
 	jobs_queue.Add(Job{
 		name:        log_text,
-		cmd:         exec.Command(pathToLESS, less_dir.Name()+"/"+less_file.Name()),
+		cmd:         cmd,
 		cmd_min:     cmd_min,
-		css_out:     css_dir.Name() + "/" + strings.Replace(less_file.Name(), ".less", ".css", 1),
-		css_min_out: css_dir.Name() + "/" + strings.Replace(less_file.Name(), ".less", ".min.css", 1),
+		css_out:     convertToCSSFilename(less_dir, css_dir, less_file, false),
+		css_min_out: convertToCSSFilename(less_dir, css_dir, less_file, true),
 	})
-
 }
 
-func NewWorker() Worker {
-	w := Worker{
-		started:      false,
-		max_jobs:     3,
-		running_jobs: 0,
-	}
+func convertToCSSFilename(less_dir, css_dir *os.File, less_file os.FileInfo, min bool) (css string) {
+	less_filename := less_file.Name()
+	css_filename := ""
 
-	return w
-}
+	last := strings.LastIndex(less_filename, ".less")
 
-func (w *Worker) Add(j Job) {
-	w.jobs = append(w.jobs, &j)
-}
-
-func (w *Worker) Start(return_ch chan int) {
-	if !w.started {
-		w.started = true
-
-		for len(w.jobs) > 0 {
-			ch := make(chan bool)
-			go w.runNextJob(ch)
-
-			result := <-ch
-
-			if !result {
-				time.Sleep(100 * time.Millisecond)
-			}
+	if last > 0 {
+		if min {
+			css_filename = less_filename[0:last] + ".min.css"
+		} else {
+			css_filename = less_filename[0:last] + ".css"
 		}
-
-		w.started = false
-	}
-
-	return_ch <- w.running_jobs
-}
-
-func (w *Worker) getNextJob() *Job {
-	j := w.jobs[0]
-	w.jobs = w.jobs[1:len(w.jobs)]
-	return j
-}
-
-func (w *Worker) runNextJob(ch chan bool) {
-	var job_ch chan int
-
-	if w.running_jobs < w.max_jobs {
-		ch <- true
-
-		job := w.getNextJob()
-		job_ch = make(chan int)
-		w.running_jobs++
-		go job.Run(job_ch)
 	} else {
-		ch <- false
+		// this shouldn't really ever happen, since we tested for it before calling this function
+		css_filename = less_filename
 	}
 
-	<-job_ch
-	w.running_jobs--
-}
-
-func (j *Job) Run(ch chan int) {
-
-	fmt.Printf("%s\n", j.name)
-
-	(func() {
-		result, err := j.cmd.Output()
-		if err != nil {
-			fmt.Errorf("Command error: %s\n", err)
-		} else {
-			dest_file, err := os.OpenFile(j.css_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
-			if err != nil {
-				fmt.Errorf("File output error: %s\n", err)
-			} else {
-				dest_file.Write(result)
-			}
-		}
-	})()
-
-	(func() {
-		result, err := j.cmd_min.Output()
-		if err != nil {
-			fmt.Errorf("Command error: %s\n", err)
-		} else {
-			dest_file, err := os.OpenFile(j.css_min_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
-			if err != nil {
-				fmt.Errorf("File output error: %s\n", err)
-			} else {
-				dest_file.Write(result)
-			}
-		}
-	})()
-
-	ch <- 1
-
+	return css_dir.Name() + "/" + css_filename
 }
