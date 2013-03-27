@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -41,9 +41,7 @@ func main() {
 	var err error
 	workingDirectory, err = os.Getwd()
 	if err != nil {
-		log.Fatalf("Can't find the working directory.")
-		os.Exit(1)
-		return
+		panic("Can't find the working directory")
 	}
 
 	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
@@ -70,8 +68,11 @@ func main() {
 
 	finish_time := time.Now()
 
-	fmt.Println("--------------------------------------")
-	fmt.Printf("%d files compiled, took %s\n", jobs_queue.Total(), finish_time.Sub(start_time).String())
+	if jobs_queue.Total() > 0 {
+		fmt.Println("--------------------------------------")
+		fmt.Printf("%d files compiled, took %s\n", jobs_queue.Total(), finish_time.Sub(start_time).String())
+	}
+
 }
 
 func compileFromRoot(dir string) {
@@ -79,9 +80,9 @@ func compileFromRoot(dir string) {
 	var err error
 
 	if dir[0:1] != "/" {
-		fq_dir, err = os.Open(workingDirectory + "/" + dir)
+		fq_dir, err = os.Open(filepath.Clean(workingDirectory + "/" + dir))
 	} else {
-		fq_dir, err = os.Open(dir)
+		fq_dir, err = os.Open(filepath.Clean(dir))
 	}
 
 	if err != nil {
@@ -92,10 +93,10 @@ func compileFromRoot(dir string) {
 	less_dir, err := os.Open(fq_dir.Name() + "/less")
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("No /less directory exists at %s", fq_dir.Name())
+			fmt.Printf("No /less directory exists at %s\n", fq_dir.Name())
 			return
 		} else {
-			log.Println(err)
+			fmt.Println(err)
 			return
 		}
 	}
@@ -105,13 +106,13 @@ func compileFromRoot(dir string) {
 		if os.IsNotExist(err) {
 			err = os.Mkdir(fq_dir.Name()+"/css", 0755)
 			if err != nil {
-				fmt.Println("Can't create css directory")
+				fmt.Printf("Can't create css directory in %s\n", fq_dir.Name())
 				return
 			} else {
 				css_dir, _ = os.Open(fq_dir.Name() + "/css")
 			}
 		} else {
-			log.Println(err)
+			fmt.Println(err)
 			return
 		}
 	}
@@ -122,7 +123,8 @@ func compileFromRoot(dir string) {
 func addDirectory(prefix string, less_dir, css_dir *os.File) {
 	files, err := less_dir.Readdir(-1)
 	if err != nil {
-		log.Panicf("Can't parse %s", less_dir.Name())
+		fmt.Printf("Can't scan %s for files", less_dir.Name())
+		return
 	}
 
 	for _, v := range files {
