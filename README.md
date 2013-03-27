@@ -55,6 +55,7 @@ Usage of less-tree:
 ## Future development
 
 * I'd like to integrate a full, compiled LESS compiler, to increase performance and remove the dependency on node.js.
+* Tests
 
 ## License
 
