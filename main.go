@@ -30,6 +30,11 @@ type CSSJob struct {
 	css_min_out string
 }
 
+type LESSError struct {
+	indent  int
+	Message string
+}
+
 func main() {
 	start_time := time.Now()
 
@@ -161,7 +166,7 @@ func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string)
 
 	// if we're using a custom minifier, we want to use that here. otherwise, just use lessc with the -x flag.
 	if pathToCssMin == "" {
-		cmd_min = exec.Command(pathToLESS, "-x", convertToCSSFilename(less_dir, css_dir, less_file, false))
+		cmd_min = exec.Command(pathToLESS, "-x", less_dir.Name()+"/"+less_file.Name())
 	} else {
 		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+"/"+strings.Replace(less_file.Name(), ".less", ".css", 1))
 	}
@@ -199,55 +204,66 @@ func convertToCSSFilename(less_dir, css_dir *os.File, less_file os.FileInfo, min
 	return css_dir.Name() + "/" + css_filename
 }
 
+func (e LESSError) Error() string {
+	indent_str := ""
+	for i := 0; i < e.indent; i++ {
+		indent_str = indent_str + " "
+	}
+
+	str := strings.Replace(fmt.Sprintf("\n%s", e.Message), "\n", "\n"+indent_str, -1)
+	return str + "\n"
+}
+
 func (j CSSJob) Run(ch chan int) {
 
-	compile_error := false
+	var err error
 
-	(func() {
+	err = (func() error {
 		result, err := j.cmd.CombinedOutput()
 		if err != nil {
-			if isVerbose {
-				fmt.Println(bytes.NewBuffer(result).String())
-			}
-
-			compile_error = true
+			return LESSError{Message: bytes.NewBuffer(result).String(), indent: 3}
 		} else {
 			dest_file, err := os.OpenFile(j.css_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
 			if err != nil {
-				log.Println(fmt.Errorf("File write error: %s\n", err))
+				return fmt.Errorf("File write error: %s\n", err)
 			} else {
 				dest_file.Write(result)
+				return nil
 			}
 		}
+
+		return nil
 	})()
 
-	if !compile_error {
-		(func() {
+	if err == nil {
+		err = (func() error {
 			result, err := j.cmd_min.Output()
 			if err != nil {
-				if isVerbose {
-					fmt.Println(bytes.NewBuffer(result).String())
-				}
-
-				compile_error = true
+				return LESSError{Message: bytes.NewBuffer(result).String(), indent: 3}
 			} else {
 				dest_file, err := os.OpenFile(j.css_min_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
 				if err != nil {
-					log.Println(fmt.Errorf("File write error: %s\n", err))
+					return fmt.Errorf("File write error: %s\n", err)
 				} else {
 					dest_file.Write(result)
+					return nil
 				}
 			}
+
+			return nil
 		})()
 	}
 
-	if !compile_error {
+	if err == nil {
 		fmt.Printf("SUCCESS: %s compiled\n", j.name)
 	} else {
-		if !isVerbose {
-			fmt.Printf("ERROR: %s NOT compiled, run with -v for errors\n", j.name)
-		} else {
-			fmt.Printf("ERROR: %s NOT compiled\n", j.name)
+		switch err.(type) {
+		case LESSError:
+			fmt.Printf("ERROR: %s not compiled, with errors:\n%s", j.name, err)
+			break
+		default:
+			fmt.Printf("ERROR: %s not compiled: %s", j.name, err)
+			break
 		}
 	}
 
