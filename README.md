@@ -58,7 +58,7 @@ Usage of less-tree:
 
 ## License
 
-```none
+```text
 The MIT License (MIT)
 Copyright (C) 2013 by Jimmy Sawczuk
 
