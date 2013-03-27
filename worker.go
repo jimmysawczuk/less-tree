@@ -14,7 +14,10 @@ type Worker struct {
 
 	max_jobs     int
 	running_jobs int
+
 	total_jobs   int
+	success_jobs int
+	errored_jobs int
 }
 
 func NewWorker() Worker {
@@ -23,6 +26,8 @@ func NewWorker() Worker {
 		max_jobs:     maxJobs,
 		running_jobs: 0,
 		total_jobs:   0,
+		errored_jobs: 0,
+		success_jobs: 0,
 	}
 
 	return w
@@ -76,8 +81,14 @@ func (w *Worker) runNextJob(ch chan bool) {
 		ch <- false
 	}
 
-	<-job_ch
+	result := <-job_ch
 	w.running_jobs--
+
+	if result != 0 {
+		w.errored_jobs++
+	} else {
+		w.success_jobs++
+	}
 }
 
 func (w Worker) Total() int {
