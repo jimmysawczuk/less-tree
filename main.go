@@ -85,7 +85,7 @@ func compileFromRoot(dir string) {
 	var fq_dir *os.File
 	var err error
 
-	if dir[0] != os.PathSeparator {
+	if !filepath.IsAbs(dir) {
 		fq_dir, err = os.Open(filepath.Clean(workingDirectory + string(os.PathSeparator) + dir))
 	} else {
 		fq_dir, err = os.Open(filepath.Clean(dir))
