@@ -1,10 +1,10 @@
 # less-tree
 
-A tool to batch your server-side LESS compilations.
+A tool to batch your server-side [LESS][3] compilations.
 
 ## Introduction
 
-Writing LESS is great, but there's always the question of how to convert .less files into .css files so they're ready to serve on the web. The "official" way is to run a command-line program, `lessc` and pipe it to a file:
+[Writing LESS is great][2], but there's always the question of how to convert .less files into .css files so they're ready to serve on the web. The "official" way is to run a command-line program, `lessc` and pipe it to a file:
 
 ```bash
 lessc path/to/less/sheet.less > path/to/css/sheet.css
@@ -35,6 +35,10 @@ less-tree www
 ```
 
 This will compile every *.less file in the the `less` subdirectory of `www`, and put the resulting stylesheets (both standard and minified) in `css`, keeping the directory structures intact. It's also able to multithread and compile more than one LESS stylesheet at a time, which should help things work way faster.
+
+## Requirements
+
+* `lessc` installed as a command-line program via npm. You can get more details [here][3], or you can just run `npm install -g less`.
 
 ## Other options
 
@@ -83,3 +87,5 @@ THE SOFTWARE.
 ```
 
   [1]: https://github.com/jbleuzen/node-cssmin
+  [2]: http://www.jimmysawczuk.com/2011/11/less-is-more.html
+  [3]: http://www.lesscss.org
