@@ -1,9 +1,7 @@
 package main
 
 import (
-	"sync"
 	"time"
-	// "fmt"
 )
 
 type Job interface {
@@ -13,12 +11,11 @@ type Job interface {
 type Worker struct {
 	jobs Queue
 
-	started    bool
-	start_lock sync.RWMutex
+	max_jobs int
 
-	max_jobs     int
+	started Switch
+
 	running_jobs Counter
-
 	total_jobs   Counter
 	success_jobs Counter
 	errored_jobs Counter
@@ -26,7 +23,6 @@ type Worker struct {
 
 func NewWorker() Worker {
 	w := Worker{
-		started:  false,
 		max_jobs: maxJobs,
 	}
 
@@ -36,39 +32,28 @@ func NewWorker() Worker {
 func (w *Worker) Add(j Job) {
 	w.jobs.Add(j)
 	w.total_jobs.AddOne()
-}
-
-func (w *Worker) Started() bool {
-	w.start_lock.RLock()
-	defer w.start_lock.RUnlock()
-
-	r := w.started
-
-	return r
+	w.Start(nil)
 }
 
 func (w *Worker) Start(return_ch chan int) {
-	if !w.Started() {
-		w.start_lock.Lock()
-		w.started = true
-		w.start_lock.Unlock()
+	if !w.started.On() && w.jobs.Len() > 0 {
+		w.started.Set(true)
 
 		for w.jobs.Len() > 0 {
-			ch := make(chan bool)
+			ch := make(chan int)
 			go w.runNextJob(ch)
-
 			result := <-ch
 
-			if !result {
-				time.Sleep(1 * time.Millisecond)
+			if result == 1 {
+				// this means the worker didn't accept the job because it's already running the max. We'll wait a few ms and try again.
+				time.Sleep(10 * time.Millisecond)
+			} else if result == 2 {
+				// this should mean the worker is out of jobs, we're done
+				break
 			}
 		}
 
-		w.start_lock.Lock()
-		w.started = false
-		w.start_lock.Unlock()
-	} else {
-		time.Sleep(1 * time.Millisecond)
+		w.started.Set(false)
 	}
 
 	if return_ch != nil {
@@ -76,30 +61,50 @@ func (w *Worker) Start(return_ch chan int) {
 	}
 }
 
-func (w *Worker) getNextJob() *Job {
-	return w.jobs.Top()
+func (w *Worker) RunningJobs() int {
+	return w.running_jobs.Val()
 }
 
-func (w *Worker) runNextJob(ch chan bool) {
-	var job_ch chan int
+func (w *Worker) Started() bool {
+	return w.started.On()
+}
 
-	if w.running_jobs.Val() < w.max_jobs {
-		ch <- true
+func (w *Worker) getNextJob() Job {
+	j := w.jobs.Top()
 
+	return *j
+}
+
+func (w *Worker) runNextJob(ch chan int) {
+
+	running_jobs := w.RunningJobs()
+	all_jobs := w.jobs.Len()
+
+	if running_jobs < w.max_jobs && all_jobs > 0 {
+
+		ch <- 0
+
+		job_ch := make(chan int)
 		job := w.getNextJob()
-		job_ch = make(chan int)
+
 		w.running_jobs.AddOne()
-		go (*job).Run(job_ch)
-	} else {
-		ch <- false
-	}
+		go job.Run(job_ch)
+		result := <-job_ch
+		w.running_jobs.SubOne()
 
-	result := <-job_ch
-	w.running_jobs.SubOne()
+		if result != 0 {
+			w.errored_jobs.AddOne()
+		} else {
+			w.success_jobs.AddOne()
+		}
 
-	if result != 0 {
-		w.errored_jobs.AddOne()
-	} else {
-		w.success_jobs.AddOne()
+	} else if all_jobs > 0 {
+
+		ch <- 1
+
+	} else if running_jobs < w.max_jobs {
+
+		ch <- 2
+
 	}
 }

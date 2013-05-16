@@ -14,6 +14,11 @@ type Queue struct {
 	lock sync.RWMutex
 }
 
+type Switch struct {
+	val  bool
+	lock sync.RWMutex
+}
+
 func (c *Counter) Add(i int) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -50,7 +55,7 @@ func (q *Queue) Top() *Job {
 	defer q.lock.Unlock()
 
 	j := q.jobs[0]
-	q.jobs = q.jobs[1:len(q.jobs)]
+	q.jobs = q.jobs[1:]
 	return j
 }
 
@@ -68,4 +73,27 @@ func (q *Queue) Len() int {
 	l := len(q.jobs)
 
 	return l
+}
+
+func (s *Switch) On() bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	r := s.val
+
+	return r
+}
+
+func (s *Switch) Toggle() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.val = !s.val
+}
+
+func (s *Switch) Set(v bool) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.val = v
 }

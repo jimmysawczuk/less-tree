@@ -56,19 +56,23 @@ func main() {
 	lessFilename = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9_\-\.]+)\.less$`)
 
 	jobs_queue = NewWorker()
+	running_jobs_chan := make(chan int)
 
 	args := flag.Args()
 	for _, v := range args {
 		compileFromRoot(v)
 	}
 
-	running_jobs_chan := make(chan int)
+	if isVerbose {
+		fmt.Println("finished building queue")
+	}
+
 	running_jobs := 1
 	for running_jobs > 0 {
 		go jobs_queue.Start(running_jobs_chan)
 		running_jobs = <-running_jobs_chan
 
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	finish_time := time.Now()
@@ -195,8 +199,6 @@ func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string)
 	}
 
 	jobs_queue.Add(css_job)
-
-	go jobs_queue.Start(nil)
 }
 
 func convertToCSSFilename(less_dir, css_dir *os.File, less_file os.FileInfo, min bool) (css string) {
