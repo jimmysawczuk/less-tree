@@ -35,20 +35,23 @@ type LESSError struct {
 	Message string
 }
 
+func init() {
+	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
+	flag.StringVar(&pathToCssMin, "css-min", "", "Path to a CSS minifier which takes an input file and spits out minified CSS in stdout")
+	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
+	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
+}
+
 func main() {
 	start_time := time.Now()
+
+	flag.Parse()
 
 	var err error
 	workingDirectory, err = os.Getwd()
 	if err != nil {
 		panic("Can't find the working directory")
 	}
-
-	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
-	flag.StringVar(&pathToCssMin, "css-min", "", "Path to a CSS minifier which takes an input file and spits out minified CSS in stdout")
-	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
-	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
-	flag.Parse()
 
 	lessFilename = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9_\-\.]+)\.less$`)
 
@@ -64,18 +67,22 @@ func main() {
 	for running_jobs > 0 {
 		go jobs_queue.Start(running_jobs_chan)
 		running_jobs = <-running_jobs_chan
+
+		time.Sleep(1 * time.Millisecond)
 	}
 
 	finish_time := time.Now()
 
-	if jobs_queue.total_jobs > 0 {
-		fmt.Println("--------------------------------------")
-		fmt.Printf("Operation complete, took %s\nOf %d files, %d successfully compiled, and %d errored (%.1f%% success rate)\n",
+	if jobs_queue.total_jobs.Val() > 0 {
+		if isVerbose {
+			fmt.Println("--------------------------------------")
+		}
+		fmt.Printf("Compiled %d LESS files in %s\n%d ok, %d errored (%.1f%% success rate)\n",
+			jobs_queue.total_jobs.Val(),
 			finish_time.Sub(start_time).String(),
-			jobs_queue.total_jobs,
-			jobs_queue.success_jobs,
-			jobs_queue.errored_jobs,
-			float64(100*jobs_queue.success_jobs)/float64(jobs_queue.total_jobs),
+			jobs_queue.success_jobs.Val(),
+			jobs_queue.errored_jobs.Val(),
+			float64(100*jobs_queue.success_jobs.Val())/float64(jobs_queue.total_jobs.Val()),
 		)
 	}
 
@@ -189,7 +196,7 @@ func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string)
 
 	jobs_queue.Add(css_job)
 
-	jobs_queue.Start(nil)
+	go jobs_queue.Start(nil)
 }
 
 func convertToCSSFilename(less_dir, css_dir *os.File, less_file os.FileInfo, min bool) (css string) {
@@ -265,15 +272,17 @@ func (j CSSJob) Run(ch chan int) {
 	exit := 0
 
 	if err == nil {
-		fmt.Printf("SUCCESS: %s compiled\n", j.name)
+		if isVerbose {
+			fmt.Printf("ok: %s\n", j.name)
+		}
 	} else {
 		switch err.(type) {
 		case LESSError:
-			fmt.Printf("ERROR: %s not compiled, with errors:\n%s", j.name, err)
+			fmt.Printf("err: %s\n%s", j.name, err)
 			exit = 1
 			break
 		default:
-			fmt.Printf("ERROR: %s not compiled: %s", j.name, err)
+			fmt.Printf("err: %s: %s", j.name, err)
 			exit = 1
 			break
 		}
