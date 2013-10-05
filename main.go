@@ -53,7 +53,7 @@ func main() {
 		panic("Can't find the working directory")
 	}
 
-	lessFilename = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9_\-\.]+)\.less$`)
+	lessFilename = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
 	jobs_queue = NewWorker()
 	running_jobs_chan := make(chan int)
@@ -145,7 +145,7 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 	}
 
 	for _, v := range files {
-		if v.IsDir() {
+		if v.IsDir() && !strings.HasPrefix(v.Name(), "_") {
 
 			less_deeper, _ := os.Open(less_dir.Name() + string(os.PathSeparator) + v.Name())
 			css_deeper, err := os.Open(css_dir.Name() + string(os.PathSeparator) + v.Name())
@@ -163,15 +163,29 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 
 			addDirectory(v.Name()+string(os.PathSeparator), less_deeper, css_deeper)
 
-		} else if lessFilename.MatchString(v.Name()) {
+		} else if lessFilename.MatchString(v.Name()) && !strings.HasPrefix(v.Name(), "_") {
 
 			addFile(less_dir, css_dir, v, prefix+v.Name())
 
 		} else {
 
 			// If we got here, it means we're either not dealing with a LESS file or we're dealing with an underscore-prefixed file (an include).
-			// fmt.Printf("Invalid filename: %s\n", v.Name())
+			output := ""
 
+			switch {
+			case v.IsDir() && prefix == "":
+				output = v.Name() + string(os.PathSeparator) + "*"
+			case v.IsDir() && prefix != "":
+				output = prefix + string(os.PathSeparator) + v.Name() + string(os.PathSeparator) + "*"
+			case !v.IsDir() && prefix == "":
+				output = v.Name()
+			case !v.IsDir() && prefix != "":
+				output = prefix + string(os.PathSeparator) + v.Name()
+			}
+
+			if isVerbose {
+				fmt.Printf("skip: %s\n", output)
+			}
 		}
 	}
 }
