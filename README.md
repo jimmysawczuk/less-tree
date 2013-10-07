@@ -36,6 +36,10 @@ less-tree www
 
 This will compile every *.less file in the the `less` subdirectory of `www`, and put the resulting stylesheets (both standard and minified) in `css`, keeping the directory structures intact. It's also able to multithread and compile more than one LESS stylesheet at a time, which should help things work way faster.
 
+## Includes
+
+less-tree will skip any files or directories prefixed with a `_`. If you have LESS files that are only used as includes and don't produce independent CSS output, prefix them with a `_`.
+
 ## Requirements
 
 * `lessc` installed as a command-line program via npm. You can get more details [here][3], or you can just run `npm install -g less`.
