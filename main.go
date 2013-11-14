@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/jimmysawczuk/worker"
+
 	"bytes"
 	"flag"
 	"fmt"
@@ -20,7 +22,7 @@ var maxJobs int = 10
 
 var lessFilename *regexp.Regexp
 
-var jobs_queue Worker
+var jobs_queue worker.Worker
 
 type CSSJob struct {
 	name        string
@@ -55,8 +57,7 @@ func main() {
 
 	lessFilename = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
-	jobs_queue = NewWorker()
-	running_jobs_chan := make(chan int)
+	jobs_queue = worker.NewWorker()
 
 	args := flag.Args()
 	for _, v := range args {
@@ -67,26 +68,30 @@ func main() {
 		fmt.Println("finished building queue")
 	}
 
-	running_jobs := 1
-	for running_jobs > 0 {
-		go jobs_queue.Start(running_jobs_chan)
-		running_jobs = <-running_jobs_chan
+	jobs_queue.On(worker.JobFinished, func(args ...interface{}) {
+		pk := args[0].(*worker.Package)
+		if pk.Return == 0 {
+			pk.Status = worker.Finished
+		} else {
+			pk.Status = worker.Errored
+		}
+	})
 
-		time.Sleep(10 * time.Millisecond)
-	}
+	jobs_queue.RunUntilDone()
 
 	finish_time := time.Now()
 
-	if jobs_queue.total_jobs.Val() > 0 {
+	stats := jobs_queue.Stats()
+	if stats.Total > 0 {
 		if isVerbose {
 			fmt.Println("--------------------------------------")
 		}
 		fmt.Printf("Compiled %d LESS files in %s\n%d ok, %d errored (%.1f%% success rate)\n",
-			jobs_queue.total_jobs.Val(),
+			stats.Total,
 			finish_time.Sub(start_time).String(),
-			jobs_queue.success_jobs.Val(),
-			jobs_queue.errored_jobs.Val(),
-			float64(100*jobs_queue.success_jobs.Val())/float64(jobs_queue.total_jobs.Val()),
+			stats.Finished,
+			stats.Errored,
+			float64(100*stats.Finished)/float64(stats.Total),
 		)
 	}
 
