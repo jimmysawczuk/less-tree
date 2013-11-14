@@ -1,7 +1,7 @@
 package main
 
 import (
-	"worker"
+	"github.com/jimmysawczuk/worker"
 
 	"bytes"
 	"flag"
