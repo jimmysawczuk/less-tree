@@ -18,7 +18,10 @@ var pathToLESS string
 var pathToCssMin string
 var workingDirectory string
 var isVerbose bool
+var enableCssMin bool
 var maxJobs int = 10
+
+var version = "1.1.0"
 
 var lessFilename *regexp.Regexp
 
@@ -38,10 +41,25 @@ type LESSError struct {
 }
 
 func init() {
-	flag.StringVar(&pathToLESS, "path", "lessc", "Path to the lessc executable")
-	flag.StringVar(&pathToCssMin, "css-min", "", "Path to a CSS minifier which takes an input file and spits out minified CSS in stdout")
+	flag.StringVar(&pathToLESS, "lessc-path", "lessc", "Path to the lessc executable")
+
 	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
 	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
+
+	flag.BoolVar(&enableCssMin, "min", false, "Automatically minify outputted css files")
+	flag.StringVar(&pathToCssMin, "cssmin-path", "", "Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)")
+
+	flag.Usage = func() {
+		cmd := exec.Command(pathToLESS, "-v")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			out = []byte("lessc not found")
+		}
+
+		fmt.Printf("less-tree version %s; %s\n", version, strings.TrimSpace(string(out)))
+		fmt.Printf("Usage: less-tree [options] <dir> <another-dir>...\n")
+		flag.PrintDefaults()
+	}
 }
 
 func main() {
@@ -52,7 +70,34 @@ func main() {
 	var err error
 	workingDirectory, err = os.Getwd()
 	if err != nil {
-		panic("Can't find the working directory")
+		fmt.Fprintln(os.Stderr, "Can't find the working directory")
+		os.Exit(1)
+	}
+
+	path, err := exec.LookPath(pathToLESS)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "The lessc path provided (%s) is invalid\n", path)
+		os.Exit(1)
+	}
+
+	if enableCssMin {
+		if pathToCssMin == "" {
+			fmt.Fprintln(os.Stderr, "CSS minification invoked but no path provided")
+			os.Exit(1)
+		}
+
+		path, err := exec.LookPath(pathToCssMin)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "CSS minification invoked but the path provided (%s) is invalid\n", path)
+			os.Exit(1)
+		}
+	}
+
+	if isVerbose {
+		cmd := exec.Command(pathToLESS, "-v")
+		out, _ := cmd.CombinedOutput()
+
+		fmt.Println("less-tree:", strings.TrimSpace(string(out)))
 	}
 
 	lessFilename = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
@@ -181,11 +226,11 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 			case v.IsDir() && prefix == "":
 				output = v.Name() + string(os.PathSeparator) + "*"
 			case v.IsDir() && prefix != "":
-				output = prefix + string(os.PathSeparator) + v.Name() + string(os.PathSeparator) + "*"
+				output = prefix + v.Name() + string(os.PathSeparator) + "*"
 			case !v.IsDir() && prefix == "":
 				output = v.Name()
 			case !v.IsDir() && prefix != "":
-				output = prefix + string(os.PathSeparator) + v.Name()
+				output = prefix + v.Name()
 			}
 
 			if isVerbose {
@@ -202,10 +247,7 @@ func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string)
 	// normal lessc command
 	cmd = exec.Command(pathToLESS, less_dir.Name()+string(os.PathSeparator)+less_file.Name())
 
-	// if we're using a custom minifier, we want to use that here. otherwise, just use lessc with the -x flag.
-	if pathToCssMin == "" {
-		cmd_min = exec.Command(pathToLESS, "-x", less_dir.Name()+string(os.PathSeparator)+less_file.Name())
-	} else {
+	if enableCssMin && pathToCssMin != "" {
 		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+string(os.PathSeparator)+strings.Replace(less_file.Name(), ".less", ".css", 1))
 	}
 
@@ -271,7 +313,7 @@ func (j CSSJob) Run(ch chan int) {
 		return nil
 	})()
 
-	if err == nil {
+	if err == nil && j.cmd_min != nil {
 		err = (func() error {
 			result, err := j.cmd_min.Output()
 			if err != nil {

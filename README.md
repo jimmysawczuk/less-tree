@@ -43,33 +43,31 @@ less-tree will skip any files or directories prefixed with a `_`. If you have LE
 ## Requirements
 
 * `lessc` installed as a command-line program via npm. You can get more details [here][3], or you can just run `npm install -g less`.
+* `cssmin` (optional) is required if you want to minify your outputted CSS, you can install it via `npm install -g cssmin`.
 
 ## Other options
 
 Typing `less-tree -help` yields this output:
 
 ```text
-Usage of less-tree:
-  -css-min="": Path to a CSS minifier which takes an input file and spits out minified CSS in stdout
+Usage: less-tree [options] <dir> <another-dir>...
+  -cssmin-path="": Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)
+  -lessc-path="lessc": Path to the lessc executable
   -max-jobs=10: Maximum amount of jobs to run at once
-  -path="lessc": Path to the lessc executable
+  -min=false: Automatically minify outputted css files
   -v=false: Whether or not to show LESS errors
 ```
 
-* The **css-min** flag can point to a different CSS minifier if you want, rather than `lessc -x`. You might want to check out [this node.js cssmin port][1].
+* `lessc -x` is deprecated so LESS is no longer automatically minified. Installing `cssmin` is pretty easy and you can use `cssmin` automatically via `-min -cssmin-path="cssmin"`.
+* The `cssmin-path` flag can point to a different CSS minifier if you want, rather than `cssmin`.
 * The **max-jobs** flag can set a maximum amount of jobs (compilations) to run at once. I'd recommend leaving this at the default, but you can increase or decrease as you want, your mileage may vary.
-* Set **path** if `less-tree` can't access the `lessc` executable from npm.
-
-## Future development
-
-* I'd like to integrate a full, compiled LESS compiler, to increase performance and remove the dependency on node.js.
-* Tests
+* Set `-lessc-path=/full/path/to/lessc` if `less-tree` can't access the `lessc` executable, or `lessc` isn't in your PATH.
 
 ## License
 
 ```text
 The MIT License (MIT)
-Copyright (C) 2013 by Jimmy Sawczuk
+Copyright (C) 2013-2015 by Jimmy Sawczuk
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -90,6 +88,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-  [1]: https://github.com/jbleuzen/node-cssmin
   [2]: http://www.jimmysawczuk.com/2011/11/less-is-more.html
   [3]: http://www.lesscss.org
