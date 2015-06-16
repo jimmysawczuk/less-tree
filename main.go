@@ -21,11 +21,11 @@ var isVerbose bool
 var enableCssMin bool
 var maxJobs int = 10
 
-var version = "1.1.0"
+var version = "1.2.0"
 
 var lessFilename *regexp.Regexp
 
-var jobs_queue worker.Worker
+var jobs_queue *worker.Worker
 
 type CSSJob struct {
 	name        string
@@ -33,6 +33,8 @@ type CSSJob struct {
 	cmd_min     *exec.Cmd
 	css_out     string
 	css_min_out string
+
+	exit_code int
 }
 
 type LESSError struct {
@@ -115,7 +117,9 @@ func main() {
 
 	jobs_queue.On(worker.JobFinished, func(args ...interface{}) {
 		pk := args[0].(*worker.Package)
-		if pk.Return == 0 {
+		job := pk.Job().(*CSSJob)
+
+		if job.exit_code == 0 {
 			pk.Status = worker.Finished
 		} else {
 			pk.Status = worker.Errored
@@ -251,7 +255,7 @@ func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string)
 		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+string(os.PathSeparator)+strings.Replace(less_file.Name(), ".less", ".css", 1))
 	}
 
-	css_job := CSSJob{
+	css_job := &CSSJob{
 		name:        log_text,
 		cmd:         cmd,
 		cmd_min:     cmd_min,
@@ -292,7 +296,7 @@ func (e LESSError) Error() string {
 	return str + "\n"
 }
 
-func (j CSSJob) Run(ch chan int) {
+func (j *CSSJob) Run() {
 
 	var err error
 
@@ -332,8 +336,6 @@ func (j CSSJob) Run(ch chan int) {
 		})()
 	}
 
-	exit := 0
-
 	if err == nil {
 		if isVerbose {
 			fmt.Printf("ok: %s\n", j.name)
@@ -342,14 +344,12 @@ func (j CSSJob) Run(ch chan int) {
 		switch err.(type) {
 		case LESSError:
 			fmt.Printf("err: %s\n%s", j.name, err)
-			exit = 1
+			j.exit_code = 1
 			break
 		default:
 			fmt.Printf("err: %s: %s", j.name, err)
-			exit = 1
+			j.exit_code = 1
 			break
 		}
 	}
-
-	ch <- exit
 }
