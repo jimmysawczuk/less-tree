@@ -120,9 +120,9 @@ func main() {
 		job := pk.Job().(*CSSJob)
 
 		if job.exit_code == 0 {
-			pk.Status = worker.Finished
+			pk.SetStatus(worker.Finished)
 		} else {
-			pk.Status = worker.Errored
+			pk.SetStatus(worker.Errored)
 		}
 	})
 
