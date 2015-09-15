@@ -84,13 +84,13 @@ func main() {
 
 	if enableCssMin {
 		if pathToCssMin == "" {
-			fmt.Fprintln(os.Stderr, "CSS minification invoked but no path provided")
+			fmt.Fprintf(os.Stderr, "CSS minification invoked but no path provided\n")
 			os.Exit(1)
 		}
 
 		path, err := exec.LookPath(pathToCssMin)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "CSS minification invoked but the path provided (%s) is invalid\n", path)
+			fmt.Fprintf(os.Stderr, "CSS minification invoked but the path provided (%s) is invalid\n", path)
 			os.Exit(1)
 		}
 	}
@@ -313,8 +313,6 @@ func (j *CSSJob) Run() {
 				return nil
 			}
 		}
-
-		return nil
 	})()
 
 	if err == nil && j.cmd_min != nil {
@@ -331,8 +329,6 @@ func (j *CSSJob) Run() {
 					return nil
 				}
 			}
-
-			return nil
 		})()
 	}
 
