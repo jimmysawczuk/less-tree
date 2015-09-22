@@ -12,18 +12,20 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
-var pathToLESS string
+var pathToLessc string
+var lesscArgs lesscArg
 var pathToCssMin string
 var workingDirectory string
 var isVerbose bool
 var enableCssMin bool
-var maxJobs int = 10
+var maxJobs int = 4
 
-var version = "1.2.0"
+var version = "1.3.0"
 
-var lessFilename *regexp.Regexp
+var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
 var jobs_queue *worker.Worker
 
@@ -42,8 +44,14 @@ type LESSError struct {
 	Message string
 }
 
+type lesscArg struct {
+	in  string
+	out []string
+}
+
 func init() {
-	flag.StringVar(&pathToLESS, "lessc-path", "lessc", "Path to the lessc executable")
+	flag.StringVar(&pathToLessc, "lessc-path", "lessc", "Path to the lessc executable")
+	flag.Var(&lesscArgs, "lessc-args", "Any extra arguments/flags to pass to lessc before the paths")
 
 	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
 	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
@@ -52,7 +60,7 @@ func init() {
 	flag.StringVar(&pathToCssMin, "cssmin-path", "", "Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)")
 
 	flag.Usage = func() {
-		cmd := exec.Command(pathToLESS, "-v")
+		cmd := exec.Command(pathToLessc, "-v")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			out = []byte("lessc not found")
@@ -76,7 +84,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	path, err := exec.LookPath(pathToLESS)
+	path, err := exec.LookPath(pathToLessc)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "The lessc path provided (%s) is invalid\n", path)
 		os.Exit(1)
@@ -96,13 +104,11 @@ func main() {
 	}
 
 	if isVerbose {
-		cmd := exec.Command(pathToLESS, "-v")
+		cmd := exec.Command(pathToLessc, "-v")
 		out, _ := cmd.CombinedOutput()
 
-		fmt.Println("less-tree:", strings.TrimSpace(string(out)))
+		fmt.Printf("less-tree v%s: %s\n", version, strings.TrimSpace(string(out)))
 	}
-
-	lessFilename = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
 	jobs_queue = worker.NewWorker()
 
@@ -248,8 +254,16 @@ func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string)
 
 	var cmd_min, cmd *exec.Cmd
 
+	lessc_args := []string{}
+
+	if len(lesscArgs.out) > 0 {
+		lessc_args = append(lessc_args, lesscArgs.out...)
+	}
+
+	lessc_args = append(lessc_args, less_dir.Name()+string(os.PathSeparator)+less_file.Name())
+
 	// normal lessc command
-	cmd = exec.Command(pathToLESS, less_dir.Name()+string(os.PathSeparator)+less_file.Name())
+	cmd = exec.Command(pathToLessc, lessc_args...)
 
 	if enableCssMin && pathToCssMin != "" {
 		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+string(os.PathSeparator)+strings.Replace(less_file.Name(), ".less", ".css", 1))
@@ -348,4 +362,69 @@ func (j *CSSJob) Run() {
 			break
 		}
 	}
+}
+
+func (a *lesscArg) String() string {
+	return a.in
+}
+
+func (a *lesscArg) Set(in string) error {
+	args := []string{}
+	start := 0
+
+	for {
+		arg, err := parseNextArg(in, start)
+		if err != nil {
+			return fmt.Errorf("error parsing lessc-args: %s", err)
+		}
+
+		if arg == "" {
+			break
+		}
+
+		args = append(args, arg)
+		start += len(arg) + 1
+	}
+
+	a.out = args
+
+	return nil
+}
+
+func parseNextArg(in string, start int) (string, error) {
+	arg := ""
+	var matching rune = 0
+
+	if start >= len(in) {
+		return "", nil
+	}
+
+	for _, char := range in[start:] {
+		switch {
+		case unicode.IsSpace(char):
+			if matching == 0 {
+				break
+			} else {
+				arg += string(char)
+			}
+
+		case unicode.Is(unicode.Quotation_Mark, char):
+			arg += string(char)
+
+			if matching == 0 {
+				matching = char
+			} else {
+				matching = 0
+			}
+
+		default:
+			arg += string(char)
+		}
+	}
+
+	if matching != 0 {
+		return arg, fmt.Errorf("non-matched quote character %s", string(matching))
+	}
+
+	return arg, nil
 }
