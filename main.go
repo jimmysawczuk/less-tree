@@ -4,6 +4,7 @@ import (
 	"github.com/jimmysawczuk/worker"
 
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 )
 
 var pathToLessc string
@@ -23,7 +23,7 @@ var isVerbose bool
 var enableCssMin bool
 var maxJobs int = 4
 
-var version = "1.3.0"
+var version = "1.3.1"
 
 var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
@@ -51,7 +51,7 @@ type lesscArg struct {
 
 func init() {
 	flag.StringVar(&pathToLessc, "lessc-path", "lessc", "Path to the lessc executable")
-	flag.Var(&lesscArgs, "lessc-args", "Any extra arguments/flags to pass to lessc before the paths")
+	flag.Var(&lesscArgs, "lessc-args", "Any extra arguments/flags to pass to lessc before the paths (specified as a JSON array)")
 
 	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
 	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
@@ -370,61 +370,13 @@ func (a *lesscArg) String() string {
 
 func (a *lesscArg) Set(in string) error {
 	args := []string{}
-	start := 0
+	err := json.Unmarshal([]byte(in), &args)
 
-	for {
-		arg, err := parseNextArg(in, start)
-		if err != nil {
-			return fmt.Errorf("error parsing lessc-args: %s", err)
-		}
-
-		if arg == "" {
-			break
-		}
-
-		args = append(args, arg)
-		start += len(arg) + 1
+	if err != nil {
+		return fmt.Errorf("error parsing lessc-args (make sure it's formatted as JSON, i.e. [\"arg1\", \"arg2\"]):", err)
 	}
 
 	a.out = args
 
 	return nil
-}
-
-func parseNextArg(in string, start int) (string, error) {
-	arg := ""
-	var matching rune = 0
-
-	if start >= len(in) {
-		return "", nil
-	}
-
-	for _, char := range in[start:] {
-		switch {
-		case unicode.IsSpace(char):
-			if matching == 0 {
-				break
-			} else {
-				arg += string(char)
-			}
-
-		case unicode.Is(unicode.Quotation_Mark, char):
-			arg += string(char)
-
-			if matching == 0 {
-				matching = char
-			} else {
-				matching = 0
-			}
-
-		default:
-			arg += string(char)
-		}
-	}
-
-	if matching != 0 {
-		return arg, fmt.Errorf("non-matched quote character %s", string(matching))
-	}
-
-	return arg, nil
 }
