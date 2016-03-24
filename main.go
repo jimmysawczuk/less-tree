@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/jimmysawczuk/worker"
 
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -22,22 +21,13 @@ var workingDirectory string
 var isVerbose bool
 var enableCssMin bool
 var maxJobs int = 4
+var force bool
 
-var version = "1.3.1"
+var version = "1.4.0"
 
 var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
 var jobs_queue *worker.Worker
-
-type CSSJob struct {
-	name        string
-	cmd         *exec.Cmd
-	cmd_min     *exec.Cmd
-	css_out     string
-	css_min_out string
-
-	exit_code int
-}
 
 type LESSError struct {
 	indent  int
@@ -55,6 +45,7 @@ func init() {
 
 	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
 	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
+	flag.BoolVar(&force, "f", false, "If true, all CSS will be rebuilt regardless of whether or not the source LESS file(s) changed")
 
 	flag.BoolVar(&enableCssMin, "min", false, "Automatically minify outputted css files")
 	flag.StringVar(&pathToCssMin, "cssmin-path", "", "Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)")
@@ -205,7 +196,15 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 	}
 
 	for _, v := range files {
-		if v.IsDir() && !strings.HasPrefix(v.Name(), "_") {
+		if v.IsDir() {
+			if strings.HasPrefix(v.Name(), "_") {
+				// We're dealing with an underscore-prefixed directory.
+				if isVerbose {
+					fmt.Printf("skip (include): %s\n", compactFilename(v, prefix))
+				}
+
+				continue
+			}
 
 			less_deeper, _ := os.Open(less_dir.Name() + string(os.PathSeparator) + v.Name())
 			css_deeper, err := os.Open(css_dir.Name() + string(os.PathSeparator) + v.Name())
@@ -222,82 +221,27 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 			}
 
 			addDirectory(v.Name()+string(os.PathSeparator), less_deeper, css_deeper)
+		}
 
-		} else if lessFilename.MatchString(v.Name()) && !strings.HasPrefix(v.Name(), "_") {
+		if !v.IsDir() && lessFilename.MatchString(v.Name()) {
+			if strings.HasPrefix(v.Name(), "_") {
+
+				// We're dealing with an underscore-prefixed file (an include).
+				if isVerbose {
+					fmt.Printf("skip (include): %s\n", compactFilename(v, prefix))
+				}
+
+				continue
+			}
 
 			addFile(less_dir, css_dir, v, prefix+v.Name())
-
-		} else {
-
-			// If we got here, it means we're either not dealing with a LESS file or we're dealing with an underscore-prefixed file (an include).
-			output := ""
-
-			switch {
-			case v.IsDir() && prefix == "":
-				output = v.Name() + string(os.PathSeparator) + "*"
-			case v.IsDir() && prefix != "":
-				output = prefix + v.Name() + string(os.PathSeparator) + "*"
-			case !v.IsDir() && prefix == "":
-				output = v.Name()
-			case !v.IsDir() && prefix != "":
-				output = prefix + v.Name()
-			}
-
-			if isVerbose {
-				fmt.Printf("skip: %s\n", output)
-			}
 		}
 	}
 }
 
-func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, log_text string) {
-
-	var cmd_min, cmd *exec.Cmd
-
-	lessc_args := []string{}
-
-	if len(lesscArgs.out) > 0 {
-		lessc_args = append(lessc_args, lesscArgs.out...)
-	}
-
-	lessc_args = append(lessc_args, less_dir.Name()+string(os.PathSeparator)+less_file.Name())
-
-	// normal lessc command
-	cmd = exec.Command(pathToLessc, lessc_args...)
-
-	if enableCssMin && pathToCssMin != "" {
-		cmd_min = exec.Command(pathToCssMin, css_dir.Name()+string(os.PathSeparator)+strings.Replace(less_file.Name(), ".less", ".css", 1))
-	}
-
-	css_job := &CSSJob{
-		name:        log_text,
-		cmd:         cmd,
-		cmd_min:     cmd_min,
-		css_out:     convertToCSSFilename(less_dir, css_dir, less_file, false),
-		css_min_out: convertToCSSFilename(less_dir, css_dir, less_file, true),
-	}
-
+func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, short_name string) {
+	css_job := NewCSSJob(short_name, less_dir, css_dir, less_file, lesscArgs.out)
 	jobs_queue.Add(css_job)
-}
-
-func convertToCSSFilename(less_dir, css_dir *os.File, less_file os.FileInfo, min bool) (css string) {
-	less_filename := less_file.Name()
-	css_filename := ""
-
-	last := strings.LastIndex(less_filename, ".less")
-
-	if last > 0 {
-		if min {
-			css_filename = less_filename[0:last] + ".min.css"
-		} else {
-			css_filename = less_filename[0:last] + ".css"
-		}
-	} else {
-		// this shouldn't really ever happen, since we tested for it before calling this function
-		css_filename = less_filename
-	}
-
-	return css_dir.Name() + string(os.PathSeparator) + css_filename
 }
 
 func (e LESSError) Error() string {
@@ -310,58 +254,21 @@ func (e LESSError) Error() string {
 	return str + "\n"
 }
 
-func (j *CSSJob) Run() {
+func compactFilename(v os.FileInfo, prefix string) string {
+	output := ""
 
-	var err error
-
-	err = (func() error {
-		result, err := j.cmd.CombinedOutput()
-		if err != nil {
-			return LESSError{Message: bytes.NewBuffer(result).String(), indent: 3}
-		} else {
-			dest_file, err := os.OpenFile(j.css_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
-			if err != nil {
-				return fmt.Errorf("File write error: %s\n", err)
-			} else {
-				dest_file.Write(result)
-				return nil
-			}
-		}
-	})()
-
-	if err == nil && j.cmd_min != nil {
-		err = (func() error {
-			result, err := j.cmd_min.Output()
-			if err != nil {
-				return LESSError{Message: bytes.NewBuffer(result).String(), indent: 3}
-			} else {
-				dest_file, err := os.OpenFile(j.css_min_out, os.O_RDWR+os.O_TRUNC+os.O_CREATE, 0644)
-				if err != nil {
-					return fmt.Errorf("File write error: %s\n", err)
-				} else {
-					dest_file.Write(result)
-					return nil
-				}
-			}
-		})()
+	switch {
+	case v.IsDir() && prefix == "":
+		output = v.Name() + string(os.PathSeparator) + "*"
+	case v.IsDir() && prefix != "":
+		output = prefix + v.Name() + string(os.PathSeparator) + "*"
+	case !v.IsDir() && prefix == "":
+		output = v.Name()
+	case !v.IsDir() && prefix != "":
+		output = prefix + v.Name()
 	}
 
-	if err == nil {
-		if isVerbose {
-			fmt.Printf("ok: %s\n", j.name)
-		}
-	} else {
-		switch err.(type) {
-		case LESSError:
-			fmt.Printf("err: %s\n%s", j.name, err)
-			j.exit_code = 1
-			break
-		default:
-			fmt.Printf("err: %s: %s", j.name, err)
-			j.exit_code = 1
-			break
-		}
-	}
+	return output
 }
 
 func (a *lesscArg) String() string {
