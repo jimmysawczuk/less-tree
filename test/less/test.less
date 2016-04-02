@@ -1,13 +1,19 @@
-@import "_include.less";
+@import (reference) "_include.less";
 
 h1 {
-	color: red;
+	color: red; // red is the best color ⌘
 
+	/* block comments are cool too */
 	&.green {
 		color: green;
 	}
 
 	&:hover {
 		color: desaturate(green, 10%);
+	}
+
+	&:after {
+		// let's test some unicode
+		content: "⌘%⌘%⌘";
 	}
 }

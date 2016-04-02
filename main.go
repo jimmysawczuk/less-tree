@@ -23,11 +23,11 @@ var enableCssMin bool
 var maxJobs int = 4
 var force bool
 
-var version = "1.4.0"
+var version = "1.5.0"
 
 var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
-var jobs_queue *worker.Worker
+var analyze_queue *worker.Worker
 
 type LESSError struct {
 	indent  int
@@ -65,6 +65,7 @@ func init() {
 
 func main() {
 	start_time := time.Now()
+	worker.MaxJobs = 1
 
 	flag.Parse()
 
@@ -101,7 +102,7 @@ func main() {
 		fmt.Printf("less-tree v%s: %s\n", version, strings.TrimSpace(string(out)))
 	}
 
-	jobs_queue = worker.NewWorker()
+	analyze_queue = worker.NewWorker()
 
 	args := flag.Args()
 	for _, v := range args {
@@ -112,22 +113,22 @@ func main() {
 		fmt.Println("finished building queue")
 	}
 
-	jobs_queue.On(worker.JobFinished, func(args ...interface{}) {
-		pk := args[0].(*worker.Package)
-		job := pk.Job().(*CSSJob)
+	// jobs_queue.On(worker.JobFinished, func(args ...interface{}) {
+	// 	pk := args[0].(*worker.Package)
+	// 	job := pk.Job().(*CSSJob)
 
-		if job.exit_code == 0 {
-			pk.SetStatus(worker.Finished)
-		} else {
-			pk.SetStatus(worker.Errored)
-		}
-	})
+	// 	if job.exit_code == 0 {
+	// 		pk.SetStatus(worker.Finished)
+	// 	} else {
+	// 		pk.SetStatus(worker.Errored)
+	// 	}
+	// })
 
-	jobs_queue.RunUntilDone()
+	analyze_queue.RunUntilDone()
 
 	finish_time := time.Now()
 
-	stats := jobs_queue.Stats()
+	stats := analyze_queue.Stats()
 	if stats.Total > 0 {
 		if isVerbose {
 			fmt.Println("--------------------------------------")
@@ -240,8 +241,8 @@ func addDirectory(prefix string, less_dir, css_dir *os.File) {
 }
 
 func addFile(less_dir, css_dir *os.File, less_file os.FileInfo, short_name string) {
-	css_job := NewCSSJob(short_name, less_dir, css_dir, less_file, lesscArgs.out)
-	jobs_queue.Add(css_job)
+	job := NewAnalyzeJob(short_name, less_dir, less_file)
+	analyze_queue.Add(job)
 }
 
 func (e LESSError) Error() string {
