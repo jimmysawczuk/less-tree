@@ -1,10 +1,10 @@
 package main
 
 import (
+	"less-tree/less"
+
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path"
 )
 
 type AnalyzeJob struct {
@@ -22,30 +22,13 @@ func NewAnalyzeJob(short_name string, less_dir *os.File, less_file os.FileInfo) 
 		LessFile: less_file,
 	}
 
-	j.init()
-
 	return j
 }
 
-func (j *AnalyzeJob) init() {
-	j.less_in = path.Join(j.LessDir.Name(), j.LessFile.Name())
-}
-
 func (j *AnalyzeJob) Run() {
-	less_content, err := ioutil.ReadFile(j.less_in)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "can't read file %s: %s\n", j.Name, err)
-	}
-
-	tokens := tokenize(less_content)
-
-	_ = tokens
-
-	if j.Name == "test.less" {
-		fmt.Println(j.Name)
-		for _, v := range tokens {
-			fmt.Printf("%v\n", v)
-		}
-		fmt.Println("------")
-	}
+	l, err := less.New(j.LessDir, j.LessFile)
+	// fmt.Println("-------")
+	_, _ = l, err
+	_ = fmt.Sprintf
+	// fmt.Println(l, err)
 }

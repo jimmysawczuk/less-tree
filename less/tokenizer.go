@@ -1,13 +1,9 @@
-package main
+package less
 
 import (
 	"bytes"
-	"fmt"
-	// "strings"
 	"unicode"
 )
-
-var _ = fmt.Sprintf
 
 func tokenize(in []byte) []string {
 
@@ -55,7 +51,7 @@ func tokenize(in []byte) []string {
 
 		default:
 			switch chr {
-			case '(', ')', ';', ':', ',', '=', '[', ']', '{', '}':
+			case '(', ')', ';', ':', ',', '=', '{', '}':
 				if working != "" {
 					tokens = append(tokens, working)
 					working = ""

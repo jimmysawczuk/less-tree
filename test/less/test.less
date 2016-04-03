@@ -1,7 +1,12 @@
 @import (reference) "_include.less";
+@import (inline) "test-css.css"
 
 h1 {
 	color: red; // red is the best color ⌘
+
+	b {
+		font-weight: bold
+	}
 
 	/* block comments are cool too */
 	&.green {
@@ -16,4 +21,12 @@ h1 {
 		// let's test some unicode
 		content: "⌘%⌘%⌘";
 	}
+}
+
+h2 b {
+	font-weight: bold
+}
+
+@media (max-width: @screem-sm-width) {
+	color: green;
 }
