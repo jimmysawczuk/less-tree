@@ -32,7 +32,7 @@ func tokenize(in []byte) []string {
 				}
 
 				comment := readUntilNewline(content, i+2)
-				i += len(comment)
+				i += len(comment) + 2
 			} else if i+1 < len(content) && content[i+1] == '*' {
 				if working != "" {
 					tokens = append(tokens, working)
@@ -102,9 +102,9 @@ func readUntilNewline(haystack []rune, start int) []rune {
 	}
 
 	for i := start; i < len(haystack); i++ {
-		switch rune(haystack[i]) {
-		case '\u000A', '\u000D':
-			return haystack[start : i+2]
+		switch haystack[i] {
+		case '\r', '\n':
+			return haystack[start : i+1]
 		}
 	}
 
