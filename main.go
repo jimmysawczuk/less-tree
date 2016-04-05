@@ -138,12 +138,6 @@ func main() {
 		}
 
 		cm.Save()
-
-		// for each less file that we found, run through its imports and see if we have a cache entry for that file that matches the current md5
-
-		// if any don't match, order a CSS recompilation
-		// run the CSS recompilations
-		// write the new cache map
 	}
 
 	css_queue.RunUntilDone()
@@ -151,19 +145,22 @@ func main() {
 	finish_time := time.Now()
 
 	stats := css_queue.Stats()
+
+	success_rate := float64(0)
 	if stats.Total > 0 {
-		if isVerbose {
-			fmt.Println("--------------------------------------")
-		}
-		fmt.Printf("Compiled %d LESS files in %s\n%d ok, %d errored (%.1f%% success rate)\n",
-			stats.Total,
-			finish_time.Sub(start_time).String(),
-			stats.Finished,
-			stats.Errored,
-			float64(100*stats.Finished)/float64(stats.Total),
-		)
+		success_rate = float64(100*stats.Finished) / float64(stats.Total)
 	}
 
+	if isVerbose {
+		fmt.Println("--------------------------------------")
+	}
+	fmt.Printf("Compiled %d LESS files in %s\n%d ok, %d errored (%.1f%% success rate)\n",
+		stats.Total,
+		finish_time.Sub(start_time).String(),
+		stats.Finished,
+		stats.Errored,
+		success_rate,
+	)
 }
 
 func (e LESSError) Error() string {
