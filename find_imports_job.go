@@ -37,14 +37,11 @@ func (j *FindImportsJob) Run() {
 		fmt.Println("analyze:", j.Name)
 	}
 
-	l, err := less.New(j.Name, j.in_dir, j.in_file, true)
+	l, err := less.New(j.Name, j.in_dir, j.in_file, j.out_dir)
 	if err != nil {
 		j.err_ch <- err
+		return
 	}
 
 	j.out_ch <- l
-
-	for _, v := range l.Imports {
-		j.out_ch <- v.File
-	}
 }

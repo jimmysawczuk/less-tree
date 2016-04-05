@@ -1,7 +1,7 @@
 package less
 
 import (
-	"crypto/md5"
+	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -10,37 +10,38 @@ import (
 )
 
 type LESSFile struct {
-	Name           string
-	Dir            *os.File
-	File           os.FileInfo
-	ProducesOutput bool
+	Name   string      `json:"name"`
+	Dir    *os.File    `json:"-"`
+	CSSDir *os.File    `json:"-"`
+	File   os.FileInfo `json:"-"`
+	Path   string      `json:"-"`
 
-	Imports []*LESSImport
-	Hash    string
+	Imports []*LESSImport `json:"imports,omitempty"`
+	Hash    string        `json:"hash"`
 
 	tokens []string
 }
 
 type LESSImport struct {
-	Options []string
-	File    *LESSFile
+	Options []string  `json:"options,omitempty"`
+	File    *LESSFile `json:"file"`
 }
 
-func New(name string, less_dir *os.File, less_file os.FileInfo, produces_output bool) (*LESSFile, error) {
+func New(name string, less_dir *os.File, less_file os.FileInfo, css_dir *os.File) (*LESSFile, error) {
 
 	l := new(LESSFile)
 	l.Name = name
 	l.Dir = less_dir
 	l.File = less_file
-	l.ProducesOutput = produces_output
+	l.CSSDir = css_dir
+	l.Path = filepath.Join(l.Dir.Name(), l.File.Name())
 
-	full := l.fullPath()
-	less_content, err := ioutil.ReadFile(full)
+	less_content, err := ioutil.ReadFile(l.Path)
 	if err != nil {
-		return nil, fmt.Errorf("can't read file %s: %s\n", full, err)
+		return nil, fmt.Errorf("can't read file %s: %s\n", l.Path, err)
 	}
 
-	hash := md5.Sum(less_content)
+	hash := sha1.Sum(less_content)
 	str := hex.EncodeToString(hash[:])
 	l.Hash = str
 
@@ -52,22 +53,26 @@ func New(name string, less_dir *os.File, less_file os.FileInfo, produces_output 
 		return nil, fmt.Errorf("import parse error: %s", err)
 	}
 
+	l.Dir.Close()
+
 	return l, nil
 }
 
-func (l *LESSFile) fullPath() string {
-	return filepath.Join(l.Dir.Name(), l.File.Name())
+func (l *LESSFile) String() string {
+	return l.prefixString(0) + "\n"
 }
 
-func (l *LESSFile) String() string {
-	full := l.fullPath()
-
+func (l *LESSFile) prefixString(width int) string {
 	if len(l.Imports) == 0 {
-		return fmt.Sprintf("File %s imports no files\n", full)
+		return fmt.Sprintf("File %s imports no files (%s)", l.Name, l.Hash)
 	} else {
-		str := fmt.Sprintf("File %s imports %d files\n", full, len(l.Imports))
+		str := fmt.Sprintf("File %s imports %d files: (%s)", l.Name, len(l.Imports), l.Hash)
 		for _, v := range l.Imports {
-			str += fmt.Sprintf(" - %s\n", v.File.Name)
+			str += "\n"
+			for i := 0; i < width; i++ {
+				str += fmt.Sprintf(" ")
+			}
+			str += fmt.Sprintf(" - %s", v.File.prefixString(width+2))
 		}
 		return str
 	}
@@ -126,7 +131,7 @@ func (p *LESSFile) NewLESSImport(in []string) (l *LESSImport, err error) {
 	path := in[i][1 : len(in[i])-1]
 	dir, file := filepath.Split(path)
 
-	var dir_p *os.File
+	var dir_p, file_p *os.File
 	if dir == "" {
 		dir_p = p.Dir
 	} else if !filepath.IsAbs(dir) {
@@ -135,10 +140,29 @@ func (p *LESSFile) NewLESSImport(in []string) (l *LESSImport, err error) {
 		dir_p, err = os.Open(filepath.Join(dir))
 	}
 
-	file_p, err := os.Open(filepath.Join(dir_p.Name(), file))
-	fi, _ := file_p.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("import path %s is not valid: %s", path, err)
+	}
 
-	l.File, _ = New(path, dir_p, fi, false)
+	ext := filepath.Ext(file)
+	if ext == "" {
+		file = file + ".less"
+	}
 
-	return l, nil
+	file_p, err = os.Open(filepath.Join(dir_p.Name(), file))
+	if err != nil {
+		return nil, fmt.Errorf("import path %s is not valid: %s", path, err)
+	}
+
+	fi, err := file_p.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("can't stat path %s: %s", path, err)
+	}
+
+	l.File, err = New(path, dir_p, fi, nil)
+
+	dir_p.Close()
+	file_p.Close()
+
+	return l, err
 }

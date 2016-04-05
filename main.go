@@ -100,17 +100,19 @@ func main() {
 			fmt.Printf("error crawling directory %s: %s\n", v, err)
 		}
 
-		cm := NewCacheMap(crawler.rootCSS)
-		cm.Load()
+		cm := NewLessTreeCache(crawler.rootCSS)
+		err = cm.Load()
+
+		files := make([]*less.LESSFile, 0)
 
 		go func(less_file_ch chan *less.LESSFile, error_ch chan error, stop_ch chan bool) {
 			for {
 				select {
-				case f := <-less_file_ch:
-					fmt.Println(f.Name, f.Hash)
+				case l := <-less_file_ch:
+					files = append(files, l)
 
-				case e := <-error_ch:
-					fmt.Println(e)
+				case err := <-error_ch:
+					fmt.Printf("err: %s\n", err)
 
 				case _ = <-stop_ch:
 					break
@@ -127,7 +129,15 @@ func main() {
 		analyze_queue.RunUntilDone()
 		stop_ch <- true
 
-		_ = cm
+		for _, file := range files {
+			is_cached := cm.Test(file)
+			if !is_cached || force {
+				job := NewCSSJob(file.Name, file.Dir, file.CSSDir, file.File, lesscArgs.out)
+				css_queue.Add(job)
+			}
+		}
+
+		cm.Save()
 
 		// for each less file that we found, run through its imports and see if we have a cache entry for that file that matches the current md5
 
@@ -135,6 +145,8 @@ func main() {
 		// run the CSS recompilations
 		// write the new cache map
 	}
+
+	css_queue.RunUntilDone()
 
 	finish_time := time.Now()
 
