@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/jimmysawczuk/less-tree/less"
 	"github.com/jimmysawczuk/worker"
-	"less-tree/less"
 
 	"encoding/json"
 	"flag"
@@ -144,23 +144,25 @@ func main() {
 
 	finish_time := time.Now()
 
-	stats := css_queue.Stats()
+	if len(args) > 0 {
+		stats := css_queue.Stats()
 
-	success_rate := float64(0)
-	if stats.Total > 0 {
-		success_rate = float64(100*stats.Finished) / float64(stats.Total)
-	}
+		success_rate := float64(0)
+		if stats.Total > 0 {
+			success_rate = float64(100*stats.Finished) / float64(stats.Total)
+		}
 
-	if isVerbose {
-		fmt.Println("--------------------------------------")
+		if isVerbose {
+			fmt.Println("--------------------------------------")
+		}
+		fmt.Printf("Compiled %d LESS files in %s\n%d ok, %d errored (%.1f%% success rate)\n",
+			stats.Total,
+			finish_time.Sub(start_time).String(),
+			stats.Finished,
+			stats.Errored,
+			success_rate,
+		)
 	}
-	fmt.Printf("Compiled %d LESS files in %s\n%d ok, %d errored (%.1f%% success rate)\n",
-		stats.Total,
-		finish_time.Sub(start_time).String(),
-		stats.Finished,
-		stats.Errored,
-		success_rate,
-	)
 }
 
 func (e LESSError) Error() string {

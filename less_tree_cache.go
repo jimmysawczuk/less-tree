@@ -1,7 +1,7 @@
 package main
 
 import (
-	"less-tree/less"
+	"github.com/jimmysawczuk/less-tree/less"
 
 	"encoding/json"
 	"io/ioutil"
