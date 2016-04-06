@@ -1,8 +1,16 @@
-@import "_include.less";
+@import (reference) "_include.less";
+@import (inline) "test-css.css";
+
+@screen-sm-width: 10;
 
 h1 {
-	color: red;
+	color: red; // red is the best color ⌘
 
+	b {
+		font-weight: bold
+	}
+
+	/* block comments are cool too */
 	&.green {
 		color: green;
 	}
@@ -10,4 +18,38 @@ h1 {
 	&:hover {
 		color: desaturate(green, 10%);
 	}
+
+	&:after {
+		// let's test some unicode
+		content: "⌘%⌘%⌘";
+	}
 }
+
+h2 b {
+	font-weight: bold
+}
+
+@media (max-width: @screen-sm-width) {
+	color: green;
+}
+
+// some more test stuff
+// h2 b {
+// 	font-weight: bold
+// }
+
+// @media (max-width: @screen-sm-width) {
+// 	color: green;
+// }
+
+// @media (max-width: @screen-sm-width) {
+// 	color: green;
+// }
+
+// @media (max-width: @screen-sm-width) {
+// 	color: green;
+// }
+
+// @media (max-width: @screen-sm-width) {
+// 	color: green;
+// }
