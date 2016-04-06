@@ -138,6 +138,10 @@ func (j *CSSJob) Run() {
 
 	var err error
 
+	if isVerbose {
+		fmt.Printf("build: %s\n", j.Name)
+	}
+
 	err = j.buildCSSOutput()
 	if err == nil && j.cmd_min != nil {
 		err = j.buildMinCSSOutput()

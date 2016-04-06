@@ -80,7 +80,7 @@ func (c *DirectoryCrawler) parseDirectory(prefix string, less_dir, css_dir *os.F
 			if strings.HasPrefix(v.Name(), "_") {
 				// We're dealing with an underscore-prefixed directory.
 				if isVerbose {
-					fmt.Printf("skip (include): %s\n", compactFilename(v, prefix))
+					fmt.Printf("skip: %s\n", compactFilename(v, prefix))
 				}
 
 				continue
@@ -108,7 +108,7 @@ func (c *DirectoryCrawler) parseDirectory(prefix string, less_dir, css_dir *os.F
 
 				// We're dealing with an underscore-prefixed file (an include).
 				if isVerbose {
-					fmt.Printf("skip (include): %s\n", compactFilename(v, prefix))
+					fmt.Printf("skip: %s\n", compactFilename(v, prefix))
 				}
 
 				continue
