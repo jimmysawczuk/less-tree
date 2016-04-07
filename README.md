@@ -22,10 +22,10 @@ public/
 And all you have to do is run:
 
 ```bash
-less-tree www
+less-tree public
 ```
 
-This will compile every *.less file in the the `less` subdirectory of `www`, and put the resulting stylesheets in the `css` subdirectory, keeping the directory structures intact. Your public directory will look like this:
+This will compile every *.less file in the the `less` subdirectory of `public`, and put the resulting stylesheets in the `css` subdirectory, keeping the directory structures intact. Your `public` directory will now look like this:
 
 ```text
 public/
