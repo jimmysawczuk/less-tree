@@ -1,15 +1,20 @@
 # less-tree
 
+[![GoDoc](https://godoc.org/github.com/jimmysawczuk/less-tree?status.svg)][godoc-link] [![go report card](https://goreportcard.com/badge/jimmysawczuk/less-tree)][goreportcard-link]
+
 A tool to batch your server-side [LESS][3] compilations.
 
-**less-tree** is written in Go, and it is able to run `lessc` on many files at once to increase the efficiency of compilation and reduce the amount of time it takes to do a full compile of all your files. Basically, the program expects you to have your directories set up like this:
+**less-tree** runs `lessc` on many LESS files at once, increasing the throughput and decreasing the amount of time it takes to do a full compile of all your LESS files.
+
+less-tree assumes your public folder looks like this:
 
 ```text
-www/
+public/
 |-- css/
 |-- less/
    |-- sub-dir/
       |-- style-sub.less
+   |-- _include.less
    |-- style-1.less
    |-- style-2.less
 ```
@@ -20,68 +25,53 @@ And all you have to do is run:
 less-tree www
 ```
 
-This will compile every *.less file in the the `less` subdirectory of `www`, and put the resulting stylesheets (both standard and minified) in `css`, keeping the directory structures intact. It's also able to multithread and compile more than one LESS stylesheet at a time, which should help things work way faster.
+This will compile every *.less file in the the `less` subdirectory of `www`, and put the resulting stylesheets in the `css` subdirectory, keeping the directory structures intact. Your public directory will look like this:
 
-## Includes
+```text
+public/
+|-- css/
+   |-- sub-dir/
+      |-- style-sub.css
+   |-- style-1.css
+   |-- style-2.css
+|-- less/
+   |-- sub-dir/
+      |-- style-sub.less
+   |-- _include.less
+   |-- style-1.less
+   |-- style-2.less
+```
 
-less-tree will skip any files or directories prefixed with a `_`. If you have LESS files that are only used as includes and don't produce independent CSS output, prefix them with a `_`.
+## Other features:
+
+* **Includes:** less-tree treats any file or directory prefixed with a `_` as a non-output LESS file, meaning it assumes it's only used as an include and won't run `lessc` on those files independently.
+* **Minification:** less-tree can optionally minify your CSS as well, using `cssmin`. The minified versions will be stored parallel to the non-minified versions. Simply pass `-min -cssmin-path="/path/to/cssmin"`.
+* **Intelligent caching:** by default, less-tree will only compile LESS files with changes or LESS files with imports that have changed (you can force a recompile of everything using `-f`). less-tree keeps track of what's changed in a JSON file in `<public_dir>/css/.less-tree-cache`. There is probably not much inherently risky in keeping it accessible, but if you want to block access to it, an `.htaccess` in `<public_dir>/css` with the following should do the trick:
+
+```plain
+<Files ".less-tree-cache">
+  Order Allow,Deny
+  Deny from all
+</Files>
+```
 
 ## Requirements
 
-* `lessc` installed as a command-line program via npm. You can get more details [here][3], or you can just run `npm install -g less`.
+less-tree doesn't compile anything on its own (yet), so you'll need to be able to install a couple of [npm nodules][npm]
+
+* `lessc` installed as a command-line program via npm. You can get more details [here][lesscss], or you can just run `npm install -g less`.
 * `cssmin` (optional) is required if you want to minify your outputted CSS, you can install it via `npm install -g cssmin`.
 
-## Other options
+## Help
 
-Typing `less-tree -help` yields this output:
-
-```text
-less-tree version 1.4.0; lessc 2.5.1 (Less Compiler) [JavaScript]
-Usage: less-tree [options] <dir> <another-dir>...
-  -cssmin-path string
-      Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)
-  -f  If true, all CSS will be rebuilt regardless of whether or not the source LESS file(s) changed
-  -lessc-args value
-      Any extra arguments/flags to pass to lessc before the paths (specified as a JSON array)
-  -lessc-path string
-      Path to the lessc executable (default "lessc")
-  -max-jobs int
-      Maximum amount of jobs to run at once (default 4)
-  -min
-      Automatically minify outputted css files
-  -v  Whether or not to show LESS errors
-```
-
-* `lessc -x` is deprecated so LESS is no longer automatically minified. Installing `cssmin` is pretty easy and you can use `cssmin` automatically via `-min -cssmin-path="cssmin"`.
-* The `cssmin-path` flag can point to a different CSS minifier if you want, rather than `cssmin`.
-* The **max-jobs** flag can set a maximum amount of jobs (compilations) to run at once. I'd recommend leaving this at the default, but you can increase or decrease as you want, your mileage may vary.
-* Set `-lessc-path=/full/path/to/lessc` if `less-tree` can't access the `lessc` executable, or `lessc` isn't in your PATH.
-* `-f` forces all CSS to be rebuilt regardless of whether or not the source LESS file was modified.
+Type `less-tree -help` to see a full command reference.
 
 ## License
 
-```text
-The MIT License (MIT)
-Copyright (C) 2013-2016 by Jimmy Sawczuk
+less-tree is released under [the MIT license][license].
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-```
-
-  [2]: http://www.jimmysawczuk.com/2011/11/less-is-more.html
-  [3]: http://www.lesscss.org
+  [godoc-link]: https://godoc.org/github.com/jimmysawczuk/less-tree
+  [goreportcard-link]: https://goreportcard.com/report/github.com/jimmysawczuk/less-tree
+  [lesscss]: http://www.lesscss.org
+  [npm]: http://www.npmjs.com
+  [license]: https://github.com/jimmysawczuk/less-tree/blob/master/LICENSE
