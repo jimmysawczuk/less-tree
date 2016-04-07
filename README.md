@@ -2,7 +2,7 @@
 
 [![GoDoc](https://godoc.org/github.com/jimmysawczuk/less-tree?status.svg)][godoc-link] [![go report card](https://goreportcard.com/badge/jimmysawczuk/less-tree)][goreportcard-link]
 
-A tool to batch your server-side [LESS][3] compilations.
+A tool to batch your server-side [LESS][lesscss] compilations.
 
 **less-tree** runs `lessc` on many LESS files at once, increasing the throughput and decreasing the amount of time it takes to do a full compile of all your LESS files.
 
