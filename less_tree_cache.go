@@ -62,10 +62,14 @@ func (c *LessTreeCache) Test(current *less.LESSFile) bool {
 		return false
 	}
 
+	if cached.Hash != current.Hash {
+		c.Files[current.Name] = current
+		return false
+	}
+
 	res := c.testImports(current, cached)
 
 	c.Files[current.Name] = current
-
 	return res
 }
 

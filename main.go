@@ -24,7 +24,7 @@ var enableCssMin bool
 var maxJobs int = 4
 var force bool
 
-var version = "1.5.0"
+var version = "1.5.1"
 
 var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
@@ -173,23 +173,6 @@ func (e LESSError) Error() string {
 
 	str := strings.Replace(fmt.Sprintf("\n%s", e.Message), "\n", "\n"+indent_str, -1)
 	return str + "\n"
-}
-
-func compactFilename(v os.FileInfo, prefix string) string {
-	output := ""
-
-	switch {
-	case v.IsDir() && prefix == "":
-		output = v.Name() + string(os.PathSeparator) + "*"
-	case v.IsDir() && prefix != "":
-		output = prefix + v.Name() + string(os.PathSeparator) + "*"
-	case !v.IsDir() && prefix == "":
-		output = v.Name()
-	case !v.IsDir() && prefix != "":
-		output = prefix + v.Name()
-	}
-
-	return output
 }
 
 func (a *lesscArg) String() string {
