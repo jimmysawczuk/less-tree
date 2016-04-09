@@ -1,6 +1,7 @@
 #!/bin/bash
 
 APPNAME="less-tree"
+VERSION="1.5.1"
 
 # Setup
 mkdir -p deploy
@@ -25,9 +26,9 @@ for GOOS in windows darwin linux; do
 
 		# if this is the host OS/arch, the exe is put in the root of bin rather than a subdirectory
 		if [[ $GOOS == $GOHOSTOS ]] && [[ $GOARCH == $GOHOSTARCH ]]; then
-			mv $APPNAME deploy/$APPNAME-${GOOS}-${GOARCH}$exe
+			mv $APPNAME deploy/$APPNAME-v$VERSION-${GOOS}-${GOARCH}$exe
 		else
-			mv $APPNAME deploy/$APPNAME-${GOOS}-${GOARCH}$exe
+			mv $APPNAME deploy/$APPNAME-v$VERSION-${GOOS}-${GOARCH}$exe
 		fi
 		echo "";
 	done
