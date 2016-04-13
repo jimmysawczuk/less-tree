@@ -184,7 +184,7 @@ func (a *lesscArg) Set(in string) error {
 	err := json.Unmarshal([]byte(in), &args)
 
 	if err != nil {
-		return fmt.Errorf("error parsing lessc-args (make sure it's formatted as JSON, i.e. [\"arg1\", \"arg2\"]):", err)
+		return fmt.Errorf("error parsing lessc-args (make sure it's formatted as JSON, i.e. [\"arg1\", \"arg2\"]): %s", err)
 	}
 
 	a.out = args
