@@ -24,7 +24,7 @@ var enableCssMin bool
 var maxJobs int = 4
 var force bool
 
-var version = "1.5.2"
+var version = "1.5.3"
 
 var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
@@ -130,9 +130,11 @@ func main() {
 		stop_ch <- true
 
 		for _, file := range files {
+			job := NewCSSJob(file.Name, file.Dir, file.CSSDir, file.File, lesscArgs.out)
 			is_cached := cm.Test(file)
-			if !is_cached || force {
-				job := NewCSSJob(file.Name, file.Dir, file.CSSDir, file.File, lesscArgs.out)
+			output_files_exist := job.OutputFilesExist()
+
+			if !is_cached || !output_files_exist || force {
 				css_queue.Add(job)
 			}
 		}

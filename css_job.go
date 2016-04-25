@@ -52,8 +52,7 @@ func NewCSSJob(short_name string, less_dir, css_dir *os.File, less_file os.FileI
 
 func (j *CSSJob) init() {
 	j.less_in = j.LessDir.Name() + string(os.PathSeparator) + j.LessFile.Name()
-	j.css_out = j.getCSSFilename(false)
-	j.css_min_out = j.getCSSFilename(true)
+	j.css_out, j.css_min_out = j.getCSSFilename(false), j.getCSSFilename(false)
 
 	lessc_args := []string{}
 	if len(j.LesscArgs) > 0 {
@@ -65,6 +64,25 @@ func (j *CSSJob) init() {
 	if enableCssMin && pathToCssMin != "" {
 		j.cmd_min = exec.Command(pathToCssMin, j.css_out)
 	}
+}
+
+func (j *CSSJob) OutputFilesExist() bool {
+	var exists = true
+	var err error
+
+	_, err = os.Open(j.getCSSFilename(false))
+	if err != nil && os.IsNotExist(err) {
+		exists = false
+	}
+
+	if j.cmd_min != nil {
+		_, err = os.Open(j.getCSSFilename(true))
+		if err != nil && os.IsNotExist(err) {
+			exists = false
+		}
+	}
+
+	return exists
 }
 
 func (j *CSSJob) getCSSFilename(min bool) (css string) {
