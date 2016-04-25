@@ -1,7 +1,7 @@
 #!/bin/bash
 
 APPNAME="less-tree"
-VERSION="1.5.3"
+VERSION="1.5.3.1"
 
 # Setup
 mkdir -p deploy

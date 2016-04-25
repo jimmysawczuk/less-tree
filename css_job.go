@@ -52,7 +52,7 @@ func NewCSSJob(short_name string, less_dir, css_dir *os.File, less_file os.FileI
 
 func (j *CSSJob) init() {
 	j.less_in = j.LessDir.Name() + string(os.PathSeparator) + j.LessFile.Name()
-	j.css_out, j.css_min_out = j.getCSSFilename(false), j.getCSSFilename(false)
+	j.css_out, j.css_min_out = j.getCSSFilename(false), j.getCSSFilename(true)
 
 	lessc_args := []string{}
 	if len(j.LesscArgs) > 0 {
