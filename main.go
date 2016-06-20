@@ -24,7 +24,7 @@ var enableCssMin bool
 var maxJobs int = 4
 var force bool
 
-var version = "1.5.3.1"
+var version = "1.5.4"
 
 var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 

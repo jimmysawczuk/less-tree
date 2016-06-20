@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -95,7 +96,10 @@ func (l *LESSFile) findImports() error {
 				return fmt.Errorf("error parsing import: %s", err)
 			}
 
-			l.Imports = append(l.Imports, imp)
+			if imp != nil {
+				l.Imports = append(l.Imports, imp)
+			}
+
 			i += len(slice)
 
 		default:
@@ -129,6 +133,14 @@ func (p *LESSFile) NewLESSImport(in []string) (l *LESSImport, err error) {
 
 	// remove quotes
 	path := in[i][1 : len(in[i])-1]
+
+	if u, err := url.Parse(path); err == nil {
+		if u.IsAbs() {
+			// this is an absolute url
+			return nil, nil
+		}
+	}
+
 	dir, file := filepath.Split(path)
 
 	var dir_p, file_p *os.File
