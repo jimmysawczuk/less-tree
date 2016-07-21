@@ -73,8 +73,7 @@ func main() {
 	}
 
 	css_queue := worker.NewWorker()
-	css_queue.On(worker.JobFinished, func(args ...interface{}) {
-		pk := args[0].(*worker.Package)
+	css_queue.On(worker.JobFinished, func(pk *worker.Package, args ...interface{}) {
 		job := pk.Job().(*CSSJob)
 
 		if job.exit_code == 0 {

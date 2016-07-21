@@ -1,0 +1,13 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "dm0jrcGXQEcS6++ncagMED42rWs=",
+			"path": "github.com/jimmysawczuk/worker",
+			"revision": "3c4a4e4fd1d8cabd02940d62e3538cf39ad91564",
+			"revisionTime": "2016-07-21T13:51:02Z"
+		}
+	],
+	"rootPath": "github.com/jimmysawczuk/less-tree"
+}
