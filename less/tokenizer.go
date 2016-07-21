@@ -5,6 +5,14 @@ import (
 	"unicode"
 )
 
+func appendNonEmptyToken(working string, tokens []string) string {
+	if working != "" {
+		tokens = append(tokens, working)
+		working = ""
+	}
+	return working
+}
+
 func tokenize(in []byte) []string {
 
 	content := bytes.Runes(in)
@@ -18,33 +26,20 @@ func tokenize(in []byte) []string {
 
 		switch {
 		case unicode.IsSpace(chr):
-			if working != "" {
-				tokens = append(tokens, working)
-				working = ""
-			}
+			working = appendNonEmptyToken(working, tokens)
 			i++
 
 		case chr == '/':
 			if i+1 < len(content) && content[i+1] == '/' {
-				if working != "" {
-					tokens = append(tokens, working)
-					working = ""
-				}
-
+				working = appendNonEmptyToken(working, tokens)
 				comment := readUntilNewline(content, i+2)
 				i += len(comment) + 2
 			} else if i+1 < len(content) && content[i+1] == '*' {
-				if working != "" {
-					tokens = append(tokens, working)
-					working = ""
-				}
+				working = appendNonEmptyToken(working, tokens)
 				comment := readUntilMatch(content, []rune("*/"), i, 0)
 				i += len(comment)
 			} else {
-				if working != "" {
-					tokens = append(tokens, working)
-					working = ""
-				}
+				working = appendNonEmptyToken(working, tokens)
 				tokens = append(tokens, "/")
 				i++
 			}
@@ -52,32 +47,19 @@ func tokenize(in []byte) []string {
 		default:
 			switch chr {
 			case '(', ')', ';', ':', ',', '=', '{', '}':
-				if working != "" {
-					tokens = append(tokens, working)
-					working = ""
-				}
+				working = appendNonEmptyToken(working, tokens)
 				tokens = append(tokens, string(chr))
 				i++
 
 			case '"':
-				if working != "" {
-					tokens = append(tokens, working)
-					working = ""
-				}
-
+				working = appendNonEmptyToken(working, tokens)
 				match := readUntilMatch(content, []rune(`"`), i, 1)
-
 				tokens = append(tokens, string(match))
 				i += len(match)
 
 			case '\'':
-				if working != "" {
-					tokens = append(tokens, working)
-					working = ""
-				}
-
+				working = appendNonEmptyToken(working, tokens)
 				match := readUntilMatch(content, []rune(`'`), i, 1)
-
 				tokens = append(tokens, string(match))
 				i += len(match)
 

@@ -24,7 +24,7 @@ var enableCssMin bool
 var maxJobs int = 4
 var force bool
 
-var version = "1.5.4"
+var version = "1.6.0"
 
 var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
@@ -85,60 +85,7 @@ func main() {
 
 	args := flag.Args()
 	for _, v := range args {
-		analyze_queue := worker.NewWorker()
-		less_file_ch := make(chan *less.LESSFile, 100)
-		error_ch := make(chan error, 100)
-		stop_ch := make(chan bool)
-
-		crawler, err := NewDirectoryCrawler(v, func(crawler *DirectoryCrawler, less_dir, css_dir *os.File, less_file os.FileInfo) {
-			short_name, _ := filepath.Rel(crawler.rootLESS.Name(), filepath.Join(less_dir.Name(), less_file.Name()))
-			job := NewFindImportsJob(short_name, less_dir, css_dir, less_file, less_file_ch, error_ch)
-			analyze_queue.Add(job)
-		})
-		if err != nil {
-			fmt.Printf("error crawling directory %s: %s\n", v, err)
-		}
-
-		cm := NewLessTreeCache(crawler.rootCSS)
-		err = cm.Load()
-
-		files := make([]*less.LESSFile, 0)
-
-		go func(less_file_ch chan *less.LESSFile, error_ch chan error, stop_ch chan bool) {
-			for {
-				select {
-				case l := <-less_file_ch:
-					files = append(files, l)
-
-				case err := <-error_ch:
-					fmt.Printf("err: %s\n", err)
-
-				case _ = <-stop_ch:
-					break
-				}
-			}
-		}(less_file_ch, error_ch, stop_ch)
-
-		crawler.Parse()
-
-		if isVerbose {
-			fmt.Println("finished building queue")
-		}
-
-		analyze_queue.RunUntilDone()
-		stop_ch <- true
-
-		for _, file := range files {
-			job := NewCSSJob(file.Name, file.Dir, file.CSSDir, file.File, lesscArgs.out)
-			is_cached := cm.Test(file)
-			output_files_exist := job.OutputFilesExist()
-
-			if !is_cached || !output_files_exist || force {
-				css_queue.Add(job)
-			}
-		}
-
-		cm.Save()
+		parseDirectory(v, css_queue)
 	}
 
 	css_queue.RunUntilDone()
@@ -219,4 +166,61 @@ func validateEnvironment() {
 			os.Exit(1)
 		}
 	}
+}
+
+func parseDirectory(dir string, css_queue *worker.Worker) {
+	analyze_queue := worker.NewWorker()
+	less_file_ch := make(chan *less.LESSFile, 100)
+	error_ch := make(chan error, 100)
+	stop_ch := make(chan bool)
+
+	crawler, err := NewDirectoryCrawler(dir, func(crawler *DirectoryCrawler, less_dir, css_dir *os.File, less_file os.FileInfo) {
+		short_name, _ := filepath.Rel(crawler.rootLESS.Name(), filepath.Join(less_dir.Name(), less_file.Name()))
+		job := NewFindImportsJob(short_name, less_dir, css_dir, less_file, less_file_ch, error_ch)
+		analyze_queue.Add(job)
+	})
+	if err != nil {
+		fmt.Printf("error crawling directory %s: %s\n", dir, err)
+	}
+
+	cm := NewLessTreeCache(crawler.rootCSS)
+	err = cm.Load()
+
+	files := make([]*less.LESSFile, 0)
+
+	go func(less_file_ch chan *less.LESSFile, error_ch chan error, stop_ch chan bool) {
+		for {
+			select {
+			case l := <-less_file_ch:
+				files = append(files, l)
+
+			case err := <-error_ch:
+				fmt.Printf("err: %s\n", err)
+
+			case _ = <-stop_ch:
+				break
+			}
+		}
+	}(less_file_ch, error_ch, stop_ch)
+
+	crawler.Parse()
+
+	if isVerbose {
+		fmt.Println("finished building queue")
+	}
+
+	analyze_queue.RunUntilDone()
+	stop_ch <- true
+
+	for _, file := range files {
+		job := NewCSSJob(file.Name, file.Dir, file.CSSDir, file.File, lesscArgs.out)
+		is_cached := cm.Test(file)
+		output_files_exist := job.OutputFilesExist()
+
+		if !is_cached || !output_files_exist || force {
+			css_queue.Add(job)
+		}
+	}
+
+	cm.Save()
 }
