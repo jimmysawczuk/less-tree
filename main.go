@@ -17,16 +17,14 @@ import (
 
 var pathToLessc string
 var lesscArgs lesscArg
-var pathToCssMin string
+var pathToCSSMin string
 var workingDirectory string
 var isVerbose bool
-var enableCssMin bool
-var maxJobs int = 4
+var enableCSSMin bool
 var force bool
-
+var maxJobs = 4
 var version = "1.6.0"
-
-var lessFilename *regexp.Regexp = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
+var lessFilename = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
 type lesscArg struct {
 	in  string
@@ -41,8 +39,8 @@ func init() {
 	flag.IntVar(&maxJobs, "max-jobs", maxJobs, "Maximum amount of jobs to run at once")
 	flag.BoolVar(&force, "f", false, "If true, all CSS will be rebuilt regardless of whether or not the source LESS file(s) changed")
 
-	flag.BoolVar(&enableCssMin, "min", false, "Automatically minify outputted css files")
-	flag.StringVar(&pathToCssMin, "cssmin-path", "", "Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)")
+	flag.BoolVar(&enableCSSMin, "min", false, "Automatically minify outputted css files")
+	flag.StringVar(&pathToCSSMin, "cssmin-path", "", "Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)")
 
 	flag.Usage = func() {
 		cmd := exec.Command(pathToLessc, "-v")
@@ -58,7 +56,7 @@ func init() {
 }
 
 func main() {
-	start_time := time.Now()
+	start := time.Now()
 
 	flag.Parse()
 	worker.MaxJobs = maxJobs
@@ -72,11 +70,11 @@ func main() {
 		fmt.Printf("less-tree v%s: %s\n", version, strings.TrimSpace(string(out)))
 	}
 
-	css_queue := worker.NewWorker()
-	css_queue.On(worker.JobFinished, func(pk *worker.Package, args ...interface{}) {
-		job := pk.Job().(*CSSJob)
+	cssQueue := worker.NewWorker()
+	cssQueue.On(worker.JobFinished, func(pk *worker.Package, args ...interface{}) {
+		job := pk.Job().(*cssJob)
 
-		if job.exit_code == 0 {
+		if job.exitCode == 0 {
 			pk.SetStatus(worker.Finished)
 		} else {
 			pk.SetStatus(worker.Errored)
@@ -85,19 +83,19 @@ func main() {
 
 	args := flag.Args()
 	for _, v := range args {
-		parseDirectory(v, css_queue)
+		parseDirectory(v, cssQueue)
 	}
 
-	css_queue.RunUntilDone()
+	cssQueue.RunUntilDone()
 
-	finish_time := time.Now()
+	finish := time.Now()
 
 	if len(args) > 0 {
-		stats := css_queue.Stats()
+		stats := cssQueue.Stats()
 
-		success_rate := float64(0)
+		successRate := float64(0)
 		if stats.Total > 0 {
-			success_rate = float64(100*stats.Finished) / float64(stats.Total)
+			successRate = float64(100*stats.Finished) / float64(stats.Total)
 		}
 
 		if isVerbose {
@@ -105,22 +103,12 @@ func main() {
 		}
 		fmt.Printf("Compiled %d LESS files in %s\n%d ok, %d errored (%.1f%% success rate)\n",
 			stats.Total,
-			finish_time.Sub(start_time).String(),
+			finish.Sub(start).String(),
 			stats.Finished,
 			stats.Errored,
-			success_rate,
+			successRate,
 		)
 	}
-}
-
-func (e LESSError) Error() string {
-	indent_str := ""
-	for i := 0; i < e.indent; i++ {
-		indent_str = indent_str + " "
-	}
-
-	str := strings.Replace(fmt.Sprintf("\n%s", e.Message), "\n", "\n"+indent_str, -1)
-	return str + "\n"
 }
 
 func (a *lesscArg) String() string {
@@ -154,13 +142,13 @@ func validateEnvironment() {
 		os.Exit(1)
 	}
 
-	if enableCssMin {
-		if pathToCssMin == "" {
+	if enableCSSMin {
+		if pathToCSSMin == "" {
 			fmt.Fprintf(os.Stderr, "CSS minification invoked but no path provided\n")
 			os.Exit(1)
 		}
 
-		path, err := exec.LookPath(pathToCssMin)
+		path, err := exec.LookPath(pathToCSSMin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "CSS minification invoked but the path provided (%s) is invalid\n", path)
 			os.Exit(1)
@@ -168,25 +156,24 @@ func validateEnvironment() {
 	}
 }
 
-func parseDirectory(dir string, css_queue *worker.Worker) {
-	analyze_queue := worker.NewWorker()
-	less_file_ch := make(chan *less.LESSFile, 100)
-	error_ch := make(chan error, 100)
-	stop_ch := make(chan bool)
+func parseDirectory(dir string, cssQueue *worker.Worker) {
+	analyzeQueue := worker.NewWorker()
+	lessFileCh := make(chan *less.LESSFile, 100)
+	errCh := make(chan error, 100)
+	stopCh := make(chan bool)
+	files := []*less.LESSFile{}
 
-	crawler, err := NewDirectoryCrawler(dir, func(crawler *DirectoryCrawler, less_dir, css_dir *os.File, less_file os.FileInfo) {
-		short_name, _ := filepath.Rel(crawler.rootLESS.Name(), filepath.Join(less_dir.Name(), less_file.Name()))
-		job := NewFindImportsJob(short_name, less_dir, css_dir, less_file, less_file_ch, error_ch)
-		analyze_queue.Add(job)
+	crawler, err := newDirectoryCrawler(dir, func(crawler *directoryCrawler, less_dir, css_dir *os.File, less_file os.FileInfo) {
+		name, _ := filepath.Rel(crawler.rootLESS.Name(), filepath.Join(less_dir.Name(), less_file.Name()))
+		job := newFindImportsJob(name, less_dir, css_dir, less_file, lessFileCh, errCh)
+		analyzeQueue.Add(job)
 	})
 	if err != nil {
 		fmt.Printf("error crawling directory %s: %s\n", dir, err)
 	}
 
-	cm := NewLessTreeCache(crawler.rootCSS)
+	cm := newLessTreeCache(crawler.rootCSS)
 	err = cm.Load()
-
-	files := make([]*less.LESSFile, 0)
 
 	go func(less_file_ch chan *less.LESSFile, error_ch chan error, stop_ch chan bool) {
 		for {
@@ -201,7 +188,7 @@ func parseDirectory(dir string, css_queue *worker.Worker) {
 				break
 			}
 		}
-	}(less_file_ch, error_ch, stop_ch)
+	}(lessFileCh, errCh, stopCh)
 
 	crawler.Parse()
 
@@ -209,16 +196,16 @@ func parseDirectory(dir string, css_queue *worker.Worker) {
 		fmt.Println("finished building queue")
 	}
 
-	analyze_queue.RunUntilDone()
-	stop_ch <- true
+	analyzeQueue.RunUntilDone()
+	stopCh <- true
 
 	for _, file := range files {
-		job := NewCSSJob(file.Name, file.Dir, file.CSSDir, file.File, lesscArgs.out)
-		is_cached := cm.Test(file)
-		output_files_exist := job.OutputFilesExist()
+		job := newCSSJob(file.Name, file.Dir, file.CSSDir, file.File, lesscArgs.out)
+		isCached := cm.Test(file)
+		outputFilesExist := job.OutputFilesExist()
 
-		if !is_cached || !output_files_exist || force {
-			css_queue.Add(job)
+		if !isCached || !outputFilesExist || force {
+			cssQueue.Add(job)
 		}
 	}
 

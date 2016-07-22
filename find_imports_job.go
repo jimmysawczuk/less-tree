@@ -7,41 +7,41 @@ import (
 	"os"
 )
 
-type FindImportsJob struct {
+type findImportsJob struct {
 	File *less.LESSFile
 	Name string
 
-	in_dir  *os.File
-	out_dir *os.File
-	in_file os.FileInfo
+	inDir  *os.File
+	outDir *os.File
+	inFile os.FileInfo
 
-	out_ch chan *less.LESSFile
-	err_ch chan error
+	outCh chan *less.LESSFile
+	errCh chan error
 }
 
-func NewFindImportsJob(short_name string, less_dir, css_dir *os.File, less_file os.FileInfo, out_ch chan *less.LESSFile, err_ch chan error) *FindImportsJob {
-	j := &FindImportsJob{
-		Name:    short_name,
-		in_dir:  less_dir,
-		out_dir: css_dir,
-		in_file: less_file,
-		out_ch:  out_ch,
-		err_ch:  err_ch,
+func newFindImportsJob(name string, lessDir, cssDir *os.File, lessFile os.FileInfo, outCh chan *less.LESSFile, errCh chan error) *findImportsJob {
+	j := &findImportsJob{
+		Name:   name,
+		inDir:  lessDir,
+		outDir: cssDir,
+		inFile: lessFile,
+		outCh:  outCh,
+		errCh:  errCh,
 	}
 
 	return j
 }
 
-func (j *FindImportsJob) Run() {
+func (j *findImportsJob) Run() {
 	if isVerbose {
 		fmt.Println("analyze:", j.Name)
 	}
 
-	l, err := less.New(j.Name, j.in_dir, j.in_file, j.out_dir)
+	l, err := less.New(j.Name, j.inDir, j.inFile, j.outDir)
 	if err != nil {
-		j.err_ch <- err
+		j.errCh <- err
 		return
 	}
 
-	j.out_ch <- l
+	j.outCh <- l
 }
