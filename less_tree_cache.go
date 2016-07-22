@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/jimmysawczuk/less-tree/less"
-
 	"encoding/json"
 	"io/ioutil"
 	"os"
@@ -11,9 +9,9 @@ import (
 )
 
 type lessTreeCache struct {
-	Version   string                    `json:"version"`
-	Generated time.Time                 `json:"generated"`
-	Files     map[string]*less.LESSFile `json:"files"`
+	Version   string               `json:"version"`
+	Generated time.Time            `json:"generated"`
+	Files     map[string]*lessFile `json:"files"`
 
 	rootDir *os.File
 }
@@ -22,7 +20,7 @@ func newLessTreeCache(dir *os.File) *lessTreeCache {
 	cm := &lessTreeCache{
 		Version:   version,
 		Generated: time.Now(),
-		Files:     make(map[string]*less.LESSFile, 0),
+		Files:     make(map[string]*lessFile, 0),
 		rootDir:   dir,
 	}
 
@@ -54,7 +52,7 @@ func (c *lessTreeCache) Save() error {
 	return err
 }
 
-func (c *lessTreeCache) Test(current *less.LESSFile) bool {
+func (c *lessTreeCache) Test(current *lessFile) bool {
 
 	cached, exists := c.Files[current.Name]
 	if !exists {
@@ -73,8 +71,8 @@ func (c *lessTreeCache) Test(current *less.LESSFile) bool {
 	return res
 }
 
-func (c *lessTreeCache) testImports(current, cached *less.LESSFile) bool {
-	var curFile, cachedFile *less.LESSFile
+func (c *lessTreeCache) testImports(current, cached *lessFile) bool {
+	var curFile, cachedFile *lessFile
 
 	for _, a := range current.Imports {
 		match := false

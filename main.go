@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/jimmysawczuk/less-tree/less"
 	"github.com/jimmysawczuk/worker"
 
 	"encoding/json"
@@ -158,10 +157,10 @@ func validateEnvironment() {
 
 func parseDirectory(dir string, cssQueue *worker.Worker) {
 	analyzeQueue := worker.NewWorker()
-	lessFileCh := make(chan *less.LESSFile, 100)
+	lessFileCh := make(chan *lessFile, 100)
 	errCh := make(chan error, 100)
 	stopCh := make(chan bool)
-	files := []*less.LESSFile{}
+	files := []*lessFile{}
 
 	crawler, err := newDirectoryCrawler(dir, func(crawler *directoryCrawler, less_dir, css_dir *os.File, less_file os.FileInfo) {
 		name, _ := filepath.Rel(crawler.rootLESS.Name(), filepath.Join(less_dir.Name(), less_file.Name()))
@@ -175,7 +174,7 @@ func parseDirectory(dir string, cssQueue *worker.Worker) {
 	cm := newLessTreeCache(crawler.rootCSS)
 	err = cm.Load()
 
-	go func(less_file_ch chan *less.LESSFile, error_ch chan error, stop_ch chan bool) {
+	go func(less_file_ch chan *lessFile, error_ch chan error, stop_ch chan bool) {
 		for {
 			select {
 			case l := <-less_file_ch:
