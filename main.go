@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/jimmysawczuk/worker"
+	"github.com/pkg/errors"
 
 	"encoding/json"
 	"flag"
@@ -31,7 +32,7 @@ type lesscArg struct {
 }
 
 func init() {
-	flag.StringVar(&pathToLessc, "lessc-path", "lessc", "Path to the lessc executable")
+	flag.StringVar(&pathToLessc, "lessc-path", "", "Path to the lessc executable")
 	flag.Var(&lesscArgs, "lessc-args", "Any extra arguments/flags to pass to lessc before the paths (specified as a JSON array)")
 
 	flag.BoolVar(&isVerbose, "v", false, "Whether or not to show LESS errors")
@@ -42,16 +43,23 @@ func init() {
 	flag.StringVar(&pathToCSSMin, "cssmin-path", "", "Path to cssmin (or an executable which takes an input file as an argument and spits out minified CSS in stdout)")
 
 	flag.Usage = func() {
-		cmd := exec.Command(pathToLessc, "-v")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			out = []byte("lessc not found")
-		}
-
-		fmt.Printf("less-tree version %s; %s\n", version, strings.TrimSpace(string(out)))
+		versions()
 		fmt.Printf("Usage: less-tree [options] <dir> <another-dir>...\n")
 		flag.PrintDefaults()
 	}
+}
+
+func versions() {
+	cmd := exec.Command(pathToLessc, "-v")
+	lesscVersion, err := cmd.CombinedOutput()
+	if err != nil {
+		lesscVersion = []byte("lessc not found!")
+	}
+
+	fmt.Printf("less-tree v%s\n", version)
+	fmt.Printf(" - lessc (%s): %s\n", pathToLessc, strings.TrimSpace(string(lesscVersion)))
+	fmt.Printf(" - cssmin (%s): enabled: %t\n", pathToCSSMin, enableCSSMin)
+	fmt.Printf("\n")
 }
 
 func main() {
@@ -60,13 +68,17 @@ func main() {
 	flag.Parse()
 	worker.MaxJobs = maxJobs
 
-	validateEnvironment()
+	err := validateEnvironment()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, errors.Wrap(err, "less-tree"))
+
+		// these are all path errors, so exit(1) should be okay/meaningful.
+		os.Exit(1)
+		return
+	}
 
 	if isVerbose {
-		cmd := exec.Command(pathToLessc, "-v")
-		out, _ := cmd.CombinedOutput()
-
-		fmt.Printf("less-tree v%s: %s\n", version, strings.TrimSpace(string(out)))
+		versions()
 	}
 
 	cssQueue := worker.NewWorker()
@@ -119,7 +131,7 @@ func (a *lesscArg) Set(in string) error {
 	err := json.Unmarshal([]byte(in), &args)
 
 	if err != nil {
-		return fmt.Errorf("error parsing lessc-args (make sure it's formatted as JSON, i.e. [\"arg1\", \"arg2\"]): %s", err)
+		return errors.Wrap(err, "error parsing lessc-args (make sure it's formatted as JSON, i.e. [\"arg1\", \"arg2\"])")
 	}
 
 	a.out = args
@@ -127,32 +139,75 @@ func (a *lesscArg) Set(in string) error {
 	return nil
 }
 
-func validateEnvironment() {
-	var err error
-	workingDirectory, err = os.Getwd()
+func validateEnvironment() error {
+	wd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Can't find the working directory")
-		os.Exit(1)
+		return errors.New("can't find the working directory")
 	}
 
-	path, err := exec.LookPath(pathToLessc)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "The lessc path provided (%s) is invalid\n", path)
-		os.Exit(1)
-	}
+	workingDirectory = wd
 
-	if enableCSSMin {
-		if pathToCSSMin == "" {
-			fmt.Fprintf(os.Stderr, "CSS minification invoked but no path provided\n")
-			os.Exit(1)
-		}
-
-		path, err := exec.LookPath(pathToCSSMin)
+	// if the path to lessc is explicitly provided and we can't find it, that's a big problem
+	if pathToLessc != "" {
+		path, err := exec.LookPath(pathToLessc)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "CSS minification invoked but the path provided (%s) is invalid\n", path)
-			os.Exit(1)
+			return errors.Errorf("the lessc path provided (%s) is invalid", pathToLessc)
+		}
+		pathToLessc = path
+	} else {
+		paths := []string{
+			"./node_modules/.bin/lessc",
+			"lessc",
+		}
+		lesscFound := false
+
+		for _, path := range paths {
+			p, err := exec.LookPath(path)
+			if err == nil {
+				lesscFound = true
+				pathToLessc = p
+				break
+			}
+		}
+
+		if !lesscFound {
+			return errors.New("couldn't find lessc executable from the inferred paths: " + strings.Join(paths, "; "))
 		}
 	}
+
+	// Only validate the cssmin executable if we're actually trying to use it
+	if enableCSSMin {
+
+		// if the path to cssmin is explicitly provided and we can't find it, that's a big problem
+		if pathToCSSMin != "" {
+			path, err := exec.LookPath(pathToCSSMin)
+			if err != nil {
+				return errors.Errorf("the cssmin path provided (%s) is invalid", pathToCSSMin)
+			}
+			pathToCSSMin = path
+		} else {
+			paths := []string{
+				"./node_modules/.bin/cssmin",
+				"cssmin",
+			}
+			cssminFound := false
+
+			for _, path := range paths {
+				p, err := exec.LookPath(path)
+				if err == nil {
+					cssminFound = true
+					pathToCSSMin = p
+					break
+				}
+			}
+
+			if !cssminFound {
+				return errors.New("couldn't find lessc executable from the inferred paths: " + strings.Join(paths, "; "))
+			}
+		}
+	}
+
+	return nil
 }
 
 func parseDirectory(dir string, cssQueue *worker.Worker) {

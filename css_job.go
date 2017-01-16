@@ -58,7 +58,7 @@ func (j *cssJob) init() {
 	lesscArgs = append(lesscArgs, j.lessIn)
 
 	j.cmd = exec.Command(pathToLessc, lesscArgs...)
-	if enableCSSMin && pathToCSSMin != "" {
+	if enableCSSMin {
 		j.cmdMin = exec.Command(pathToCSSMin, j.cssOut)
 	}
 }
