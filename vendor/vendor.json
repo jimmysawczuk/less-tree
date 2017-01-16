@@ -7,6 +7,12 @@
 			"path": "github.com/jimmysawczuk/worker",
 			"revision": "3c4a4e4fd1d8cabd02940d62e3538cf39ad91564",
 			"revisionTime": "2016-07-21T13:51:02Z"
+		},
+		{
+			"checksumSHA1": "GcaTbmmzSGqTb2X6qnNtmDyew1Q=",
+			"path": "github.com/pkg/errors",
+			"revision": "a2d6902c6d2a2f194eb3fb474981ab7867c81505",
+			"revisionTime": "2016-06-27T22:23:52Z"
 		}
 	],
 	"rootPath": "github.com/jimmysawczuk/less-tree"
