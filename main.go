@@ -23,7 +23,7 @@ var isVerbose bool
 var enableCSSMin bool
 var force bool
 var maxJobs = 4
-var version = "1.6.0"
+var version = "1.7.0"
 var lessFilename = regexp.MustCompile(`^([A-Za-z0-9_\-\.]+)\.less$`)
 
 type lesscArg struct {
