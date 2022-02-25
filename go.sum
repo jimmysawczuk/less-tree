@@ -1,0 +1,4 @@
+github.com/jimmysawczuk/worker v0.0.0-20160721135102-3c4a4e4fd1d8 h1:PoMPOJ2RE5UdWmqc/h2dVJcxzztoGNkddUEJSqYbtec=
+github.com/jimmysawczuk/worker v0.0.0-20160721135102-3c4a4e4fd1d8/go.mod h1:RyYhzY1OegwvGxrJ96b4F2KkaRV3E3+MD0yPI50Y7N8=
+github.com/pkg/errors v0.7.1-0.20160627222352-a2d6902c6d2a h1:dKpZ0nc8i7prliB4AIfJulQxsX7whlVwi6j5HqaYUl4=
+github.com/pkg/errors v0.7.1-0.20160627222352-a2d6902c6d2a/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
