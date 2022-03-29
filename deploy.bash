@@ -15,7 +15,7 @@ echo ""
 
 # Build
 for GOOS in windows darwin linux; do
-	for GOARCH in amd64 386; do
+	for GOARCH in amd64 386 arm64; do
 		exe=""
 		if [[ $GOOS == "windows" ]]; then
 			exe=".exe"
